@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { useVideoPlayer } from '@/lib/video';
+import { useVideoPlayer, DevControls } from '@/lib/video';
 import { Scene1 } from './scenes/Scene1';
 import { Scene2 } from './scenes/Scene2';
 import { Scene3 } from './scenes/Scene3';
@@ -33,9 +33,10 @@ const SCENE_AUDIO = [
 ];
 
 export default function SegWitVideoTemplate() {
-  const { currentScene } = useVideoPlayer({
+  const player = useVideoPlayer({
     durations: SCENE_DURATIONS,
   });
+  const { currentScene } = player;
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -75,6 +76,7 @@ export default function SegWitVideoTemplate() {
         {currentScene === 6 && <Scene7 key="scene7" />}
         {currentScene === 7 && <Scene8 key="scene8" />}
       </AnimatePresence>
+      <DevControls player={player} />
     </div>
   );
 }

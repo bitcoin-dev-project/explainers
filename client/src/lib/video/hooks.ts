@@ -65,6 +65,9 @@ export interface UseVideoPlayerReturn {
   totalScenes: number;
   currentSceneKey: string;
   hasEnded: boolean;
+  next: () => void;
+  prev: () => void;
+  goToScene: (index: number) => void;
 }
 
 export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerReturn {
@@ -77,7 +80,6 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
 
   const [currentScene, setCurrentScene] = useState(0);
   const [hasEnded, setHasEnded] = useState(false);
-
   // Setup local recording fallback and start on mount
   useEffect(() => {
     setupLocalRecording();
@@ -110,11 +112,26 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
     return () => clearTimeout(timer);
   }, [currentScene, totalScenes, durationsArray, hasEnded, loop, onVideoEnd]);
 
+  const next = () => {
+    if (currentScene < totalScenes - 1) setCurrentScene(prev => prev + 1);
+  };
+
+  const prev = () => {
+    if (currentScene > 0) setCurrentScene(prev => prev - 1);
+  };
+
+  const goToScene = (index: number) => {
+    if (index >= 0 && index < totalScenes) setCurrentScene(index);
+  };
+
   return {
     currentScene,
     totalScenes,
     currentSceneKey: sceneKeys[currentScene],
     hasEnded,
+    next,
+    prev,
+    goToScene,
   };
 }
 

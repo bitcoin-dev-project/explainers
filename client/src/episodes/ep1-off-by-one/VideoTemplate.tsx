@@ -1,5 +1,5 @@
 import { AnimatePresence } from 'framer-motion';
-import { useVideoPlayer } from '@/lib/video';
+import { useVideoPlayer, DevControls } from '@/lib/video';
 import { Scene1 } from './scenes/Scene1';
 import { Scene2 } from './scenes/Scene2';
 import { Scene3 } from './scenes/Scene3';
@@ -35,9 +35,10 @@ const SCENE_DURATIONS = {
 };
 
 export default function VideoTemplate() {
-  const { currentScene } = useVideoPlayer({
+  const player = useVideoPlayer({
     durations: SCENE_DURATIONS,
   });
+  const { currentScene } = player;
 
   return (
     <div
@@ -61,6 +62,7 @@ export default function VideoTemplate() {
         {currentScene === 13 && <Scene14 key="scene14" />}
         {currentScene === 14 && <Scene15 key="scene15" />}
       </AnimatePresence>
+      <DevControls player={player} />
     </div>
   );
 }

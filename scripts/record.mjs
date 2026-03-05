@@ -4,7 +4,7 @@ import { resolve, join } from 'path';
 import { execSync, spawn } from 'child_process';
 
 const PORT = 5173;
-const URL = `http://localhost:${PORT}`;
+const URL = `http://localhost:${PORT}?record`;
 const OUTPUT_DIR = resolve('.');
 const AUDIO_DIR = './client/public/audio/ep2-segwit';
 
