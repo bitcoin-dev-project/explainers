@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment & secrets
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated videos & temp build artifacts
+*.mp4
+*.webm
+_combined_audio.mp3
+
+# Vite
+vite.config.ts.*
+
+# Archives
+*.tar.gz
+
+# Replit
+.replit
+.local/
+.agents/
+
+# IDE / tooling
+.claude/
+
+# Dev research assets
+attached_assets/
