@@ -65,6 +65,8 @@ export interface UseVideoPlayerReturn {
   totalScenes: number;
   currentSceneKey: string;
   hasEnded: boolean;
+  isPaused: boolean;
+  togglePause: () => void;
   next: () => void;
   prev: () => void;
   goToScene: (index: number) => void;
@@ -80,17 +82,29 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
 
   const [currentScene, setCurrentScene] = useState(0);
   const [hasEnded, setHasEnded] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const remainingRef = useRef(0);
+  const sceneStartRef = useRef(0);
+
+  const togglePause = () => setIsPaused(p => !p);
+
   // Setup local recording fallback and start on mount
   useEffect(() => {
     setupLocalRecording();
     window.startRecording?.();
   }, []);
 
-  // Scene advancement
+  // Scene advancement (pause-aware)
   useEffect(() => {
     if (hasEnded && !loop) return;
+    if (isPaused) return;
 
-    const currentDuration = durationsArray[currentScene];
+    const duration = remainingRef.current > 0
+      ? remainingRef.current
+      : durationsArray[currentScene];
+
+    sceneStartRef.current = Date.now();
+    remainingRef.current = 0;
 
     const timer = setTimeout(() => {
       if (currentScene < totalScenes - 1) {
@@ -107,21 +121,37 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
           setCurrentScene(0);
         }
       }
-    }, currentDuration);
+    }, duration);
 
-    return () => clearTimeout(timer);
-  }, [currentScene, totalScenes, durationsArray, hasEnded, loop, onVideoEnd]);
+    return () => {
+      clearTimeout(timer);
+      // Save remaining time when pausing
+      if (isPaused) return;
+      const elapsed = Date.now() - sceneStartRef.current;
+      const scheduled = remainingRef.current > 0 ? remainingRef.current : durationsArray[currentScene];
+      remainingRef.current = Math.max(0, scheduled - elapsed);
+    };
+  }, [currentScene, totalScenes, durationsArray, hasEnded, loop, onVideoEnd, isPaused]);
 
   const next = () => {
-    if (currentScene < totalScenes - 1) setCurrentScene(prev => prev + 1);
+    if (currentScene < totalScenes - 1) {
+      remainingRef.current = 0;
+      setCurrentScene(prev => prev + 1);
+    }
   };
 
   const prev = () => {
-    if (currentScene > 0) setCurrentScene(prev => prev - 1);
+    if (currentScene > 0) {
+      remainingRef.current = 0;
+      setCurrentScene(prev => prev - 1);
+    }
   };
 
   const goToScene = (index: number) => {
-    if (index >= 0 && index < totalScenes) setCurrentScene(index);
+    if (index >= 0 && index < totalScenes) {
+      remainingRef.current = 0;
+      setCurrentScene(index);
+    }
   };
 
   return {
@@ -129,6 +159,8 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
     totalScenes,
     currentSceneKey: sceneKeys[currentScene],
     hasEnded,
+    isPaused,
+    togglePause,
     next,
     prev,
     goToScene,

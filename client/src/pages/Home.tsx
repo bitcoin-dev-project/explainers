@@ -31,6 +31,16 @@ const EPISODES = [
     duration: '1:54',
     status: 'draft' as const,
   },
+  {
+    id: 'ep4',
+    number: 4,
+    title: 'Garbled Circuits',
+    description:
+      'How two parties can compute a function together without revealing their private inputs.',
+    scenes: 15,
+    duration: '1:59',
+    status: 'draft' as const,
+  },
 ];
 
 export default function Home() {
