@@ -18,3 +18,16 @@ export {
   customSpring,
   withDelay,
 } from './animations';
+
+export {
+  DiagramBox,
+  Arrow,
+  Connector,
+  FlowRow,
+  Badge,
+  DataCell,
+  TableGrid,
+  Brace,
+  TreeNode,
+  HighlightBox,
+} from './diagrams';
