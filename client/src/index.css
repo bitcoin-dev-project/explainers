@@ -1,25 +1,40 @@
 @import "tailwindcss";
 
 :root {
-  --color-primary: #E77F32; /* Orange */
-  --color-secondary: #6F7DC1; /* Muted Blue */
-  --color-accent: #E77F32;
+  /* BDP Brand Colors */
+  --color-primary: #EB5234; /* BDP Orange */
+  --color-secondary: #396BEB; /* Blue */
+  --color-accent: #EB9B34; /* Yellow */
 
-  --color-bg-light: #E6D3B3; /* Beige */
-  --color-bg-dark: #DCC9A8;
-  --color-bg-muted: #EADCBF;
+  --color-bg-light: #EFE9DE; /* Surface */
+  --color-bg-dark: #E1DBD0; /* Stroke */
+  --color-bg-muted: #F6F0E6; /* Lighter text bg */
 
-  --color-text-primary: #1C1C1C;
+  --color-text-primary: #201E1E; /* Darker text */
   --color-text-secondary: #3A3A3A;
   --color-text-muted: #595959;
-  --color-text-inverse: #E6D3B3;
+  --color-text-inverse: #F6F0E6;
 
-  --color-success: #6F7DC1;
-  --color-warning: #E77F32;
-  --color-error: #D9534F;
+  --color-success: #0E9158; /* Green */
+  --color-warning: #EB9B34; /* Yellow */
+  --color-error: #EB5234; /* Orange/Red */
 
-  --font-display: 'DM Sans', sans-serif;
-  --font-body: 'DM Sans', sans-serif;
+  /* BDP Extended Palette */
+  --color-green: #0E9158;
+  --color-green-light: #8CB4A3;
+  --color-blue: #396BEB;
+  --color-blue-light: #D1E2F3;
+  --color-purple: #7762B9;
+  --color-purple-light: #CABFEF;
+  --color-pink: #F382AD;
+  --color-pink-light: #F5D7E2;
+  --color-yellow: #EB9B34;
+  --color-yellow-light: #EED4B3;
+  --color-stroke: #E1DBD0;
+
+  /* BDP Fonts */
+  --font-display: 'Montserrat', sans-serif;
+  --font-body: 'Quicksand', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
 

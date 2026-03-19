@@ -31,3 +31,6 @@ export {
   TreeNode,
   HighlightBox,
 } from './diagrams';
+
+// Single-canvas architecture (3B1B-style)
+export { CE, morph, sceneRange } from './canvas';

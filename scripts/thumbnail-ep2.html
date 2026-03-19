@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1280px;
+    height: 720px;
+    background: #ECD4B5;
+    font-family: 'Montserrat', sans-serif;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Subtle grid pattern */
+  .grid-bg {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(28,28,28,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(28,28,28,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Orange accent bar left */
+  .accent-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 8px;
+    height: 100%;
+    background: #EB5234;
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 50px 60px 40px 60px;
+  }
+
+  /* Episode badge */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #1C1C1C;
+    color: #ECD4B5;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 8px 18px;
+    border-radius: 6px;
+    width: fit-content;
+    margin-bottom: 24px;
+  }
+
+  .badge .dot {
+    width: 8px;
+    height: 8px;
+    background: #EB5234;
+    border-radius: 50%;
+  }
+
+  /* Main title */
+  .title {
+    font-size: 92px;
+    font-weight: 900;
+    color: #1C1C1C;
+    line-height: 0.95;
+    letter-spacing: -2px;
+    margin-bottom: 8px;
+  }
+
+  .title .highlight {
+    color: #EB5234;
+  }
+
+  /* Subtitle */
+  .subtitle {
+    font-size: 32px;
+    font-weight: 700;
+    color: #1C1C1C;
+    opacity: 0.5;
+    margin-bottom: auto;
+  }
+
+  /* Address dissection at bottom */
+  .address-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .address-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .addr-part {
+    padding: 10px 14px;
+    border-radius: 8px;
+    position: relative;
+  }
+
+  .addr-prefix {
+    background: #EB5234;
+    color: white;
+  }
+
+  .addr-sep {
+    background: #1C1C1C;
+    color: #ECD4B5;
+    padding: 10px 12px;
+  }
+
+  .addr-version {
+    background: #396BEB;
+    color: white;
+  }
+
+  .addr-witness {
+    background: rgba(14, 145, 88, 0.15);
+    color: #0E9158;
+    border: 2.5px solid #0E9158;
+  }
+
+  .addr-checksum {
+    background: rgba(119, 98, 185, 0.15);
+    color: #7762B9;
+    border: 2.5px solid #7762B9;
+  }
+
+  /* Labels under address parts */
+  .labels-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+
+  .label-item {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .label-item .line {
+    width: 2px;
+    height: 10px;
+    border-radius: 1px;
+  }
+
+  .l-prefix { color: #EB5234; width: 58px; }
+  .l-prefix .line { background: #EB5234; }
+  .l-sep { color: #1C1C1C; width: 38px; }
+  .l-sep .line { background: #1C1C1C; }
+  .l-version { color: #396BEB; width: 52px; }
+  .l-version .line { background: #396BEB; }
+  .l-witness { color: #0E9158; width: 420px; }
+  .l-witness .line { background: #0E9158; }
+  .l-checksum { color: #7762B9; width: 120px; }
+  .l-checksum .line { background: #7762B9; }
+
+  /* Arrow decoration */
+  .arrow-right {
+    position: absolute;
+    right: 50px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 80px;
+    height: 80px;
+    border: 4px solid rgba(28,28,28,0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .arrow-right svg {
+    width: 32px;
+    height: 32px;
+    fill: none;
+    stroke: rgba(28,28,28,0.2);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <div class="accent-bar"></div>
+
+  <div class="content">
+    <div class="badge">
+      <span class="dot"></span>
+      Episode 2
+    </div>
+
+    <div class="title">
+      <span class="highlight">SegWit</span><br>Address
+    </div>
+
+    <div class="subtitle">Bech32 Decoded</div>
+
+    <div class="address-section">
+      <div class="address-row">
+        <span class="addr-part addr-prefix">bc</span>
+        <span class="addr-part addr-sep">1</span>
+        <span class="addr-part addr-version">q</span>
+        <span class="addr-part addr-witness">eqzjk7vume5wmrdgz5xyehh54</span>
+        <span class="addr-part addr-checksum">cchdjag</span>
+      </div>
+      <div class="labels-row">
+        <div class="label-item l-prefix"><div class="line"></div>Prefix</div>
+        <div class="label-item l-sep"><div class="line"></div>Sep</div>
+        <div class="label-item l-version"><div class="line"></div>Ver</div>
+        <div class="label-item l-witness"><div class="line"></div>Witness Program (20 bytes)</div>
+        <div class="label-item l-checksum"><div class="line"></div>Checksum</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

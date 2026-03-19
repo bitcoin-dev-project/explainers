@@ -41,6 +41,16 @@ const EPISODES = [
     duration: '1:59',
     status: 'draft' as const,
   },
+  {
+    id: 'ep5',
+    number: 5,
+    title: 'The 64-Byte Transaction Bug',
+    description:
+      'How a Merkle tree ambiguity lets attackers fake SPV proofs — and the BIP 54 fix that bans it.',
+    scenes: 16,
+    duration: '6:24',
+    status: 'draft' as const,
+  },
 ];
 
 export default function Home() {

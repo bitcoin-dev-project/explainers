@@ -1,0 +1,99 @@
+EPISODE 5 — THE 64-BYTE TRANSACTION BUG
+Voice-over transcript
+(Each slide is marked with its scene number. Timing will be adjusted later to match animations.)
+
+---
+
+SLIDE 1 — Title (scene 0, ~5s)
+
+The sixty-four byte transaction bug. Consensus Cleanup. BIP 54.
+
+---
+
+SLIDE 2 — Merkle tree builds (scene 1, ~8s)
+
+Every Bitcoin block bundles its transactions into a structure called a Merkle tree. Transactions sit at the bottom as leaves, and each pair gets hashed together to form a parent — all the way up to a single root hash.
+
+---
+
+SLIDE 3 — Merkle proof (scene 2, ~8s)
+
+To prove your transaction is in a block, you don't need the whole tree. You just need the sibling hashes at each level. Hash your way up — if you land on the same root that's in the block header, the proof checks out.
+
+---
+
+SLIDE 4 — Inner node = 64 bytes (scene 3, ~9s)
+
+Now let's look inside one of these parent nodes. To compute it, you concatenate two child hashes — each one is thirty-two bytes — and feed the result into SHA-256. So the input to every inner node is exactly sixty-four bytes.
+
+---
+
+SLIDE 5 — Transaction = 64 bytes (scene 4, ~8s)
+
+Here's where it gets interesting. A Bitcoin transaction can be crafted to be exactly sixty-four bytes — one input, one output, minimal script data. The smallest possible transaction is actually around sixty-one bytes, but sixty-four is the critical number because it matches the inner node size.
+
+---
+
+SLIDE 6 — The Coincidence (scene 5, ~8s)
+
+Stack them side by side. Inner node: sixty-four bytes. Transaction: sixty-four bytes. SHA-256 sees the same number of bytes either way. It has no idea whether it's hashing a Merkle node or a transaction. That ambiguity is the bug.
+
+---
+
+SLIDE 7 — SPV wallets (scene 6, ~9s)
+
+Why does this matter? Because light wallets — also called SPV wallets — don't download every block. They only grab block headers and ask full nodes for Merkle proofs. If the proof hashes to the root in the header, they trust it. They never see the full tree.
+
+---
+
+SLIDE 8 — The Two Transactions (scene 7, ~11s)
+
+Here's how the attack works. Alice needs two transactions. The first one is the real transaction — a malicious sixty-four byte transaction that actually gets mined. Its first thirty-two bytes will be read as a left child hash, and its last thirty-two bytes as a right child hash. The second transaction is the fake one — a normal-looking payment, say five BTC to Bob. This one never gets mined. But its transaction ID, the hash of that payment, must exactly match those last thirty-two bytes of the real transaction.
+
+---
+
+SLIDE 9 — TXID Collision (scene 8, ~11s)
+
+So how does Alice make the transaction IDs match? She grinds. She creates her fake transaction, then keeps changing the change address — over and over — and each time, the transaction ID changes. Most attempts won't match. But with the constraints on the last thirty-two bytes, there are about seventy bits of work to bruteforce. That's far less than two-to-the-two-fifty-six, but still expensive.
+
+---
+
+SLIDE 10 — Alice mines her 64-byte tx (scene 9, ~8s)
+
+Step one. Alice broadcasts her sixty-four byte transaction. It looks weird, but it's technically valid, so miners include it in a block. It lands in the Merkle tree as a leaf — let's call it Transaction 64.
+
+---
+
+SLIDE 11 — HIGHLIGHT: The leaf IS the inner node (scene 10, ~12s)
+
+Step two. Here's the key insight. That leaf — Transaction 64 — is sixty-four bytes long. When the Merkle tree hashes it, SHA-256 sees sixty-four bytes and treats the first thirty-two as one child hash and the last thirty-two as another. The leaf splits open into two fake children. The tree now has an extra level that was never meant to exist — and one of those fake children is the transaction ID of Alice's never-mined payment.
+
+---
+
+SLIDE 12 — Two Views: Reality vs Alice's Lie (scene 11, ~10s)
+
+So now there are two ways to read the same Merkle tree. In reality, it's a normal tree with Transaction 64 as a leaf. But Alice can construct a Merkle proof that treats it as an inner node with two children — one of which is her fake five BTC payment. Both interpretations produce the exact same root hash. That's the whole trick.
+
+---
+
+SLIDE 13 — SPV Fooled (scene 12, ~10s)
+
+Step three. Alice sends this fake proof to Bob's light wallet. The wallet checks: does the leaf hash to the parent? Yes. Does the path reach the root? Yes. Does the root match the block header? Yes — because it's a real block, mined by real miners with real proof of work. Every check passes. Bob's wallet shows an incoming payment of five BTC. But that transaction was never mined. It doesn't exist.
+
+---
+
+SLIDE 14 — Feasibility (scene 13, ~10s)
+
+Now, you might ask — how feasible is this really? Let's break down the last thirty-two bytes field by field. Out of those thirty-two bytes, about eight bytes are constrained — the tail of the transaction ID, the signature size, the output count, and the script size. The other twenty-four bytes are either freely chosen or directly manipulable by the attacker. That leaves about seventy bits of work — far from the two-to-the-two-fifty-six you'd need for a full SHA-256 collision, but still costly enough to require serious resources.
+
+---
+
+SLIDE 15 — BIP 54 Fix (scene 14, ~7s)
+
+The fix? Beautifully simple. BIP 54 says: ban all sixty-four byte transactions. Nothing breaks. This is part of the Consensus Cleanup soft fork.
+
+---
+
+SLIDE 16 — CTA (scene 15, ~5s)
+
+Follow @bitcoin_devs for more. Next up, worst-case block validation time.

@@ -4,12 +4,14 @@ import OffByOneVideo from '@/episodes/ep1-off-by-one/VideoTemplate';
 import SegWitVideo from '@/episodes/ep2-segwit/VideoTemplate';
 import SHA256Video from '@/episodes/ep3-sha256/VideoTemplate';
 import GarbledCircuitsVideo from '@/episodes/ep4-garbled-circuits/VideoTemplate';
+import SixtyFourByteVideo from '@/episodes/ep5-64byte-tx/VideoTemplate';
 
 const ROUTES: Record<string, () => React.ReactNode> = {
   ep1: () => <OffByOneVideo />,
   ep2: () => <SegWitVideo />,
   ep3: () => <SHA256Video />,
   ep4: () => <GarbledCircuitsVideo />,
+  ep5: () => <SixtyFourByteVideo />,
 };
 
 function getRoute() {
