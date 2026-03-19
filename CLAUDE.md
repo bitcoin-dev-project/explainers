@@ -9,36 +9,131 @@ This project creates animated Bitcoin educational video explainers using React +
 - `client/public/audio/` — scene voiceover MP3s
 - `references/` — brand guidelines, writing style references
 
-## Episode Format
+## Episode Format — Single-Canvas Architecture (3B1B Style)
 
-Each episode is a sequence of **scenes** (React components). Each scene is a **full-screen animation** with timed element reveals.
+Episodes use a **single persistent canvas** where all visual elements live in ONE component. Instead of mounting/unmounting separate scene components (PowerPoint-style), `currentScene` drives element visibility and animation. Elements morph, appear, and disappear smoothly on the same canvas — like 3Blue1Brown, not slides.
 
 ### Episode Structure
 ```
 ep<N>-<slug>/
-├── VideoTemplate.tsx    # Scene orchestrator (durations, audio, layout)
-└── scenes/
-    ├── Scene1.tsx       # Title scene
-    ├── Scene2.tsx       # Opening — start from familiar ground
-    ├── ...              # Teaching scenes
-    └── SceneN.tsx       # CTA / series teaser
+├── VideoTemplate.tsx    # Single canvas with all elements + scene timing
 ```
+No `scenes/` folder needed. Everything is in one file. For very large episodes, you may split logical sections into helper components imported into VideoTemplate, but they are NOT mounted/unmounted per scene — they receive `scene` as a prop.
 
 ### VideoTemplate Pattern
-- Define `SCENE_DURATIONS` object: `{ scene1: 6000, scene2: 8000, ... }` (milliseconds)
-- Use `useVideoPlayer({ durations: SCENE_DURATIONS })` hook
-- Render scenes conditionally inside `<AnimatePresence mode="wait">`
-- Include `<DevControls player={player} />` for development playback
+```tsx
+import { useVideoPlayer, DevControls, CE, morph } from '@/lib/video';
+import { TreeNode, Connector, DiagramBox } from '@/lib/video/diagrams';
 
-### Scene Structure
-- Each scene is a standalone React component wrapped in `motion.div` with a scene transition
-- Elements animate in sequentially using staggered delays (0.3s, 0.6s, 1.0s, etc.)
+const SCENE_DURATIONS = {
+  scene1: 6000,   // Title
+  scene2: 8000,   // Opening concept
+  scene3: 10000,  // Diagram builds
+};
+
+export default function VideoTemplate() {
+  const player = useVideoPlayer({ durations: SCENE_DURATIONS });
+  const s = player.currentScene;
+
+  return (
+    <div className="w-full h-screen overflow-hidden relative"
+         style={{ backgroundColor: 'var(--color-bg-light)' }}>
+
+      {/* Title — visible only during scene 0 */}
+      <CE s={s} enter={0} exit={1} delay={0.3}
+          className="absolute inset-0 flex items-center justify-center">
+        <h1 className="text-[4vw] font-bold"
+            style={{ fontFamily: 'var(--font-display)' }}>
+          Episode Title
+        </h1>
+      </CE>
+
+      {/* Merkle tree — appears at scene 1, stays through scene 5 */}
+      <CE s={s} enter={1} exit={6}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="absolute inset-0 flex items-center justify-center">
+        <svg width="40vw" height="30vh" viewBox="0 0 600 220" fill="none">
+          <TreeNode x={300} y={20} label="Root" delay={0.5} variant="primary" />
+          <TreeNode x={160} y={90} label="H(1,2)" delay={0.8} variant="accent" />
+        </svg>
+      </CE>
+
+      {/* Element that morphs position across scenes */}
+      <motion.p {...morph(s, {
+        1: { opacity: 1, y: 0 },
+        3: { opacity: 1, y: -30 },
+        5: { opacity: 0 },
+      })}>
+        Each parent = SHA256(left ‖ right)
+      </motion.p>
+
+      <DevControls player={player} />
+    </div>
+  );
+}
+```
+
+### Canvas Primitives (`@/lib/video/canvas`)
+
+#### CE (CanvasElement) — Enter/exit lifecycle
+```tsx
+// Simple element: enters at scene 2, exits at scene 5, 0.3s delay
+<CE s={s} enter={2} exit={5} delay={0.3}>
+  <h2>Heading text</h2>
+</CE>
+
+// SVG group: use as="g" inside <svg>
+<CE s={s} enter={2} exit={5} as="g">
+  <TreeNode x={100} y={50} label="Root" />
+</CE>
+
+// Container with children that have their own delays:
+<CE s={s} enter={1} exit={7} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+  <svg>
+    <TreeNode delay={0.5} />
+    <TreeNode delay={0.8} />
+  </svg>
+</CE>
+
+// Custom enter/exit animations:
+<CE s={s} enter={3} initial={{ opacity: 0, scale: 0.5 }}
+    animate={{ opacity: 1, scale: 1 }} exitStyle={{ opacity: 0, scale: 1.5 }}>
+  <DiagramBox label="Hash" variant="primary" />
+</CE>
+```
+
+Props: `s` (current scene), `enter`, `exit?`, `delay?`, `initial?`, `animate?`, `exitStyle?`, `transition?`, `as?` ('div'|'span'|'p'|'g'), `className?`, `style?`
+
+#### morph() — Scene-driven animation states
+```tsx
+<motion.g {...morph(s, {
+  2: { x: 100, y: 200, opacity: 1 },
+  4: { x: 300, y: 100, scale: 0.8 },
+  6: { opacity: 0 },
+})}>
+  <TreeNode label="Root" />
+</motion.g>
+```
+Returns `{ animate, transition }` — spread onto any `motion.*` component.
+
+#### sceneRange() — Boolean visibility helper
+```tsx
+const showTree = sceneRange(s, 2, 8);  // true when scene is in [2, 8)
+```
+
+### Key Principles
+- **No AnimatePresence on scenes.** Individual `CE` elements handle their own enter/exit.
+- **Elements persist across scenes.** A Merkle tree built in scene 3 stays visible in scene 5 without rebuilding.
+- **Use `morph()` for elements that change position/style across scenes.** Much more dynamic than fade-between-slides.
+- **Use `CE` for elements with simple enter/exit lifecycle.** Most elements fit this pattern.
+- **Layout with `absolute` positioning.** Since everything is on one canvas, use `absolute` + flexbox for positioning. Elements can overlap naturally.
+- **Children can have their own delays.** `CE` controls when the container mounts; `TreeNode`, `Connector` etc. handle their own staggered reveals inside.
+
+### Scene Structure (within single canvas)
 - Use viewport-relative units (`vw`, `vh`) for responsive 1920×1080 capture
-- Import from `@/lib/video/animations`: springs, easings, sceneTransitions, element animations
-
-## Duration Constraint
-- **Total video duration MUST NOT exceed 2 minutes (120 seconds).** Sum all `SCENE_DURATIONS` values — if they exceed 120s, cut scenes or shorten durations. Prefer fewer, tighter scenes over cramming. If the topic can be explained in 60-90 seconds, do it — shorter is better. Keep it simple.
-- **Before finalizing an episode**, always verify: `Object.values(SCENE_DURATIONS).reduce((a, b) => a + b, 0) <= 120000`
+- Import from `@/lib/video`: `CE`, `morph`, `sceneRange`, `springs`, diagram components
+- Each "scene" is a time window — elements declare which scenes they're visible during via `enter`/`exit`
+- Elements can span multiple scenes (e.g., a diagram that stays while text changes around it)
 
 ## Scene Rules
 - **Use as many scenes as the topic needs** — no limit on scene count. More scenes with simpler content each is better than fewer dense scenes.
@@ -78,12 +173,13 @@ Every scene follows the same principle: elements appear **one at a time** with s
 <motion.span transition={{ delay: 1.5 }}> {/* Result appears last */}
 ```
 
-### Scene Transitions
-Use `sceneTransitions` from the shared animation library. Vary transitions between scenes — don't use the same one for every scene. Good defaults:
-- `fadeBlur` — title scenes, section openers
-- `slideLeft` — forward progression, step-by-step sequences
-- `scaleFade` — zooming into detail, "let's look inside"
-- `wipe` — clean break between sections
+### Scene Transitions (Single Canvas)
+No page-level transitions. Instead, elements transition individually:
+- **Enter:** Elements fade/slide in via `CE` with staggered delays
+- **Exit:** Elements fade out when their `exit` scene arrives
+- **Morph:** Elements change position/style via `morph()` — the viewer sees continuous transformation
+- **Overlap:** New elements can start entering before old ones finish exiting — creates a flowing feel
+- **Background changes:** Use `morph()` on the background container for gradual color shifts between sections
 
 ### Element Animation Patterns
 - **Flow diagrams**: Input → [Box] → Output pattern with arrows drawing in via `pathLength`
@@ -92,6 +188,121 @@ Use `sceneTransitions` from the shared animation library. Vary transitions betwe
 - **Running state**: Show the full data in every scene with the current step's portion highlighted/boxed — viewer always sees where they are in the process
 - **SVG line drawing**: Use `pathLength: 0 → 1` for arrows, connections, circuit diagrams
 
+### Diagram Components (`@/lib/video/diagrams`)
+Reusable animated primitives available as a **starting point**. Use them for common patterns (flow diagrams, tables, badges), but **create custom topic-specific components when the concept deserves unique visual treatment**. A hash function episode should look different from a Merkle tree episode — let the topic drive the visuals, not the component library.
+
+**When to use the library:** Generic boxes, arrows, tables, badges — structural elements that don't need to be unique.
+**When to build custom:** The episode's core visual concept — the ONE thing that makes this topic's animation memorable. A custom bit-grid for SHA-256, a custom network graph for P2P, a custom elliptic curve for ECDSA. These should be built fresh, not forced into DiagramBox.
+
+Import: `import { DiagramBox, Arrow, FlowRow, Connector, TreeNode, TableGrid, Badge, DataCell, Brace, HighlightBox } from '@/lib/video/diagrams';`
+
+#### DiagramBox — Labeled box with variants
+```tsx
+<DiagramBox label="Input" sublabel="256 bits" delay={0.5} variant="primary" size="md" mono />
+```
+Variants: `default`, `primary`, `accent`, `success`, `danger`, `muted`. Sizes: `sm`, `md`, `lg`. Supports `dark` prop for dark-background scenes.
+
+#### Arrow — SVG arrow with pathLength draw-in
+```tsx
+<Arrow delay={0.8} direction="right" length="4vw" color="var(--color-secondary)" label="hash output" dashed={false} curved={false} />
+```
+Directions: `right`, `left`, `down`, `up`. Supports labels, dashed style, curved paths.
+
+#### FlowRow — Automatic Input → Process → Output flow
+```tsx
+<FlowRow
+  steps={[
+    { label: 'Input', sublabel: 'data', variant: 'primary' },
+    { label: 'Hash', variant: 'accent' },
+    { label: 'Output', variant: 'success' },
+  ]}
+  baseDelay={0.5} stagger={0.5} arrowLength="3.5vw"
+/>
+```
+Auto-staggers delays. Best for linear pipelines. One-liner for common patterns.
+
+#### Connector — SVG bezier curve for tree/graph edges
+```tsx
+<Connector from={[100, 50]} to={[200, 150]} delay={0.5} color="var(--color-secondary)" curvature={0.5} showArrow={true} />
+```
+Use inside `<svg>`. Pair with `TreeNode` for trees. `curvature` 0 = straight, higher = more curve.
+
+#### TreeNode — SVG node for Merkle/binary trees
+```tsx
+<TreeNode x={150} y={50} label="Root" delay={0.5} variant="primary" width={60} height={26} />
+```
+Use inside `<svg>`. Pair with `Connector` for parent-child edges. Supports all variants + `dark` prop.
+
+**Merkle tree pattern:**
+```tsx
+<svg width="40vw" height="30vh" viewBox="0 0 600 220" fill="none">
+  {/* Leaves */}
+  <TreeNode x={90}  y={170} label="Tx₁" delay={0.8} variant="default" width={55} height={26} />
+  <TreeNode x={230} y={170} label="Tx₂" delay={1.0} variant="default" width={55} height={26} />
+  {/* Connectors draw up */}
+  <Connector from={[90, 170]} to={[160, 116]} delay={2.0} color="var(--color-secondary)" curvature={0.3} />
+  <Connector from={[230, 170]} to={[160, 116]} delay={2.2} color="var(--color-secondary)" curvature={0.3} />
+  {/* Parent appears after connectors */}
+  <TreeNode x={160} y={90} label="H(1,2)" delay={2.5} variant="accent" width={60} height={26} />
+</svg>
+```
+
+#### TableGrid — Animated table with row stagger
+```tsx
+<TableGrid
+  columns={[{ header: 'Input', width: '6vw', mono: true }, { header: 'Output', width: '8vw' }]}
+  rows={[
+    { cells: ['0', 'Hash(0)'], highlight: false },
+    { cells: ['1', 'Hash(1)'], highlight: true, highlightColor: 'var(--color-primary)' },
+  ]}
+  baseDelay={0.5} rowStagger={0.3}
+/>
+```
+Rows fade in with left-slide. Highlight adds left accent bar.
+
+#### Badge — Pill-shaped label
+```tsx
+<Badge delay={0.5} variant="primary" size="md">Step 1</Badge>
+```
+
+#### DataCell — Monospace data display
+```tsx
+<DataCell delay={0.3} highlight color="var(--color-secondary)">a1b2c3d4e5f6</DataCell>
+```
+
+#### Brace — Animated curly brace with label
+```tsx
+<Brace width="40vw" delay={0.5} direction="down" label="Merkle root" color="var(--color-secondary)" />
+```
+
+#### HighlightBox — Subtle glow wrapper
+```tsx
+<HighlightBox delay={1.0} color="var(--color-primary)" padding="1.5vh 1.5vw">
+  <p>Key concept</p>
+</HighlightBox>
+```
+
+### Voiceover-Synced Reveals (CRITICAL when audio exists)
+When an episode has voiceover, animation reveals MUST sync with what the narrator is saying. Elements appear WHEN the narrator mentions them — not all at once when the scene loads. The screen should start mostly empty and build up as the narrator explains.
+
+**The rule:** Don't show it until the narrator says it.
+
+**How to sync:** Audio starts 400ms after scene enters. So if the narrator says "and here's the root" at ~3.5s in the audio, the animation delay = 3.5 + 0.4 = 3.9s. Add timing comments to every animated element:
+
+```tsx
+{/* "bundles hundreds of transactions" @ ~2s audio → 2.4s scene */}
+<motion.div transition={{ delay: 2.4 }}>
+  <TxBox />
+</motion.div>
+
+{/* "how do you prove yours is inside?" @ ~4s audio → 4.4s scene */}
+<motion.p transition={{ delay: 4.4 }}>
+  But how do you prove yours is inside?
+</motion.p>
+```
+
+**Visual reinforcement:** When the narrator describes a relationship (e.g., "the root goes into the block header"), show it visually — an arrow, a highlight, a connection line. The animation should illustrate what the voice is explaining, not just display text.
+
 ### Timing Guidelines
 - Scene intro transition: 0.4-0.6s
 - First content element: delay 0.3-0.5s after scene enters
@@ -99,17 +310,51 @@ Use `sceneTransitions` from the shared animation library. Vary transitions betwe
 - Final emphasis element: use `springs.bouncy` or `springs.poppy`
 - Leave 1-2s of "hold" time at end of scene before auto-advancing (viewer needs time to absorb)
 
+### Motion Personality Per Episode
+Don't use the same spring config for every episode. Match the animation feel to the topic:
+- **Aggressive/security topics:** `stiffness: 500+`, `damping: 15-20` — snappy, sudden, tense
+- **Mathematical/crypto topics:** `stiffness: 100-150`, `damping: 25-30` — slow, precise, deliberate
+- **Network/distributed topics:** `stiffness: 200-300`, `damping: 20` — flowing, wave-like, organic
+- **Step-by-step processes:** mix fast setup moves (`stiffness: 400`) with slow key reveals (`stiffness: 80`)
+- Define episode-local spring configs when the shared `springs` presets don't fit the mood
+
 ## Visual Style
-- Beige/cream background (`var(--color-bg-light)`: #E6D3B3)
+
+### Brand Constants (always keep)
+- Beige/cream background (`var(--color-bg-light)`: #E6D3B3) as default canvas
 - Orange accent (`var(--color-primary)`: #E77F32) for highlights, step numbers, key values
 - Dark text (`var(--color-text-primary)`: #1C1C1C)
-- Muted blue secondary (`var(--color-secondary)`: #6F7DC1) for accents
 - Font: DM Sans for display/body, JetBrains Mono for code/technical data
 - Hedgehog characters as mascots (Alice, Bob, Carol — distinct outfit colors)
+
+### Per-Episode Visual Identity
+Each episode should have its own visual personality driven by its topic. The brand constants above are the thread that ties episodes together — everything else can (and should) vary.
+
+**Episode accent colors** — beyond the brand orange, each episode may introduce 1-2 topic-specific accent colors. Examples:
+- Security/attack episodes: red (#E74C3C) + dark slate for danger/tension
+- Cryptography episodes: purple (#8B5CF6) + teal for mathematical elegance
+- Network/P2P episodes: green (#10B981) + cyan for connectivity
+- Consensus episodes: gold (#F59E0B) + deep blue for authority/trust
+
+**Episode visual motif** — each episode should have ONE signature visual idea that makes it instantly recognizable. Not reused across episodes:
+- SHA-256: bit grid with colored rows
+- Merkle trees: growing tree with animated connectors
+- Mining: difficulty target as a shrinking zone
+- Signatures: sender→channel→receiver persistent layout
+- Timelocks: animated clock/timeline
+
+**Layout variety** — don't default to "heading top, diagram center, label bottom" every time. Let the content dictate layout:
+- Split-screen for comparisons (attack vs defense)
+- Full-bleed diagram with floating labels for complex visuals
+- Centered single element for dramatic reveals
+- Persistent sidebar + main content for multi-step processes
+- Diagonal/asymmetric layouts for energy and dynamism
+
+### General Visual Guidelines
 - Hand-drawn feel: arrows, labeled boxes, simple diagrams
 - Bold headers, numbered steps ("Step 1:", "Step 2:")
 - Checkmarks and cross marks for comparisons
-- Color-coded elements (orange for labels, blue/red for key value highlights)
+- Color-coded elements (orange for labels, accent colors for key value highlights)
 
 ## Tone & Voice
 - Casual-educational, peer-to-peer (teaching alongside, not lecturing)
@@ -145,9 +390,14 @@ The teaching voice sounds like someone walking you through it at a whiteboard: "
 
 ## Teaching Approaches
 1. **Analogy-First** — walk through analogy in early scenes, then map to technical concept (only when analogy fits naturally)
-2. **Problem-Solution** — present attack/problem, show danger with character scenarios, introduce fix
+2. **Problem > Failure > Fix Loop** — build a naive system, show how it breaks, fix it, show how it breaks again, fix again. Each failure motivates the next layer. (Ledger → forgery problem → digital signatures → centralization problem → proof of work → blockchain.) Best for: protocol design, system architecture, cryptography — any topic where the "why" of each component only makes sense after seeing the failure it prevents.
 3. **Definition-Deep-Dive** — define concept, layer complexity scene by scene, show internals step by step with progressive animations
 4. **Dialogue-Driven** — characters ask questions, get answers. Natural Q&A flow. Works great for protocol/system explainers.
+5. **Specific > General** — concrete example with real values first, then generalize to the abstract rule. A worked SHA-256 round is more engaging than the algorithm definition.
+6. **Wrong > Less Wrong > Right** — start with the naive/wrong approach, show why it fails, refine. Each iteration gets closer to the real solution. Good for approximations, security models, consensus mechanisms.
+
+### Emotional Arc
+Target this arc across the episode: **Curiosity > Confusion > Partial clarity > Aha moment > Satisfaction.** The "aha moment" should land in the Highlight Scene. Everything before it builds tension; everything after it pays off.
 
 ## Characters
 - Alice, Bob, Carol (Eve/Mallory for attackers)
@@ -182,30 +432,122 @@ When showing character mappings, encoding tables, or number conversions, use ani
 ### Persistent Panel Pattern
 For complex topics, keep a reference diagram visible alongside the main scene content (see EP4 garbled circuits). Split layout: main content on left (`flex-1`), persistent reference panel on right (`30vw`). The reference panel updates its state per scene but stays visible across multiple scenes.
 
+### Cascade / Domino Consequence
+When a system has dependencies, show what happens when one piece changes by animating downstream breakage in sequence. Change one transaction → that block's hash changes → next block's "previous hash" mismatches → all subsequent blocks break, one by one. The viewer sees cause-and-effect propagating. Powerful for:
+- Tamper-resistance (blockchain, Merkle trees, checksums)
+- Error propagation (hash chains, signature verification)
+- Why immutability matters
+
+```tsx
+{/* Animate blocks breaking one by one with staggered delays */}
+{blocks.map((block, i) => (
+  <motion.div
+    key={i}
+    animate={tampered && i >= tamperedIndex ? { borderColor: '#E74C3C', scale: [1, 1.05, 1] } : {}}
+    transition={{ delay: (i - tamperedIndex) * 0.4 }}
+  />
+))}
+```
+
+### Scale Comparison — Make Big Numbers Real
+When a topic involves incomprehensibly large numbers (2^256 hash space, mining difficulty, key space), don't just write the number — decompose it into tangible comparisons. Start with one comprehensible quantity → multiply by another → repeat until the viewer *feels* the impossibility. Use progressive zoom-out or rescaling to map number growth to spatial growth.
+
+Example: 2^256 → (2^32)^8 → "4 billion" × "4 billion" × ... until the scale becomes absurd. Each factor maps to something physical (people on Earth, grains of sand, atoms in the universe).
+
+### Bit Grid Visualization
+For topics involving binary data (hashes, keys, addresses, signatures), render actual bits as a visual grid — rows of colored 1s and 0s. Use 8 rows × 32 columns for SHA-256 (= 256 bits). Highlight subsets by color to show structure (leading zeros for PoW, key prefix bytes, checksum portions).
+
+```tsx
+{/* Render real SHA-256 output as a visual bit grid */}
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(32, 1fr)', gap: '2px', fontFamily: 'JetBrains Mono' }}>
+  {bits.map((bit, i) => (
+    <motion.span
+      key={i}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: i * 0.01 }}
+      style={{ color: i < leadingZeros ? 'var(--color-primary)' : 'var(--color-text-primary)' }}
+    >
+      {bit}
+    </motion.span>
+  ))}
+</div>
+```
+
+### Communication Channel Layout
+For protocol explanations (signatures, encryption, verification), use a persistent Sender → [Channel] → Receiver layout. Sender on the left, receiver on the right, data flows through the channel between them. Keep this layout stable across multiple scenes so the viewer tracks the spatial relationship.
+
+### Network / Broadcast Visualization
+When explaining distributed systems or propagation (P2P gossip, block propagation, mempool), show a network of nodes with animated connections. Signals radiate outward from a source node using expanding rings or sequential edge highlights with staggered delays.
+
+## Visual Diversity by Topic Context
+
+**Every episode should feel like it was designed specifically for its topic, not stamped out of a template.** The shared infrastructure (`CE`, `morph`, `useVideoPlayer`, `DevControls`, `springs`) stays consistent — that's what makes development fast. But the visual layer (diagrams, layouts, colors, motion style, custom components) should be driven by what the topic naturally looks like.
+
+### Topic → Visual Language Map
+Use this as inspiration, not prescription. The best visual approach is the one that makes the concept click.
+
+| Topic Category | Natural Visuals | Motion Style | Accent Colors |
+|---|---|---|---|
+| **Hash functions** | Bit grids, data flowing through a funnel, avalanche cascades | Sharp, fast transforms; data "crunching" feel | Blues, cyans |
+| **Trees (Merkle, etc.)** | Growing trees, leaves → root animation, branch highlighting | Organic growth, bottom-up reveals | Greens, earth tones |
+| **Security/attacks** | Red zones, broken chains, attacker vs victim split-screen | Aggressive, sudden breaks; tension-building | Reds, dark slates |
+| **Cryptography (signatures, keys)** | Lock/unlock metaphors, sender→receiver channels, key pairs | Mathematical precision, smooth morphs | Purples, teals |
+| **Consensus/mining** | Competing chains, difficulty targets, block races | Parallel synchronized motion, race dynamics | Golds, deep blues |
+| **Network/P2P** | Node graphs, signal propagation, broadcast rings | Radiating outward, wave-like spreads | Greens, cyans |
+| **Encoding/serialization** | Byte dissection, format anatomy, color-coded segments | Precise, surgical reveals; zoom-in on data | Warm neutrals, highlights per segment |
+| **Transactions** | Flow of value, UTXO boxes connecting, fee visualization | Flowing, directional (left→right value movement) | Greens (value), oranges (fees) |
+| **Timelocks/scripting** | Timelines, conditional branches, clock animations | Time-based reveals, countdown feel | Amber, slate |
+
+### Encouraged Custom Techniques
+Don't limit yourself to the diagram library. Each episode can introduce:
+- **Custom SVG animations** — hand-craft an SVG specific to the concept (e.g., an elliptic curve, a circuit diagram, a blockchain fork visualization)
+- **CSS animations** — `@keyframes` for effects that don't need JS control (pulsing glows, rotating elements, gradient shifts)
+- **Canvas/WebGL** — for particle effects, generative backgrounds, or data visualizations that benefit from GPU rendering
+- **Inline computed visuals** — generate diagram data from real values (actual SHA-256 output, real Bitcoin addresses, computed Merkle paths) instead of hardcoded placeholder text
+- **Custom layout components** — a `NetworkGraph`, `ByteDissector`, `TimelineScrubber` that lives in the episode folder, not the shared lib
+- **Step-based state machines** — `useState` + `useEffect` with timed transitions for multi-step animations within a single scene (build a tree level by level, process data byte by byte)
+- **Third-party libraries** — if a topic genuinely benefits from a specialized library (e.g., `d3-force` for network layouts, `react-spring` for specific physics), use it. Don't force Framer Motion to do everything.
+
+### What Stays Consistent Across Episodes (Brand Thread)
+- Beige/cream base background
+- Orange as primary brand accent
+- DM Sans + JetBrains Mono fonts
+- `CE` / `morph` / `springs` infrastructure
+- Progressive reveal principle (staggered delays, never dump content)
+- Text rules (short captions, animation teaches)
+- Hedgehog characters when characters appear
+- DevControls + useVideoPlayer for playback
+
+Everything else is **fair game for creative variation**.
+
 ## What Makes Top Performers Work
 1. Timeliness — first to explain a hot/new concept visually
-2. Visual novelty — topics nobody else has animated
+2. **Visual novelty — each episode looks and feels different from the last**
 3. Depth-to-accessibility ratio — go deep but stay approachable
 4. The "aha moment" — make something people heard of but don't understand click
 5. Real examples — actual values, real tool names, real scenarios
 6. Smooth animations — progressive reveal feels like magic, keeps viewers watching
+7. **Topic-specific visual identity** — the animation style matches the concept being taught
 
 ## Content Checklist
 - Pick a topic people have heard of but don't really understand
+- **Define the episode's visual concept** — what's the ONE signature visual? What accent colors? What layout? (See "Step 0" in Adding a New Episode)
+- **Build at least one custom component** for the episode's core visual — don't default to DiagramBox for everything
+- Target the emotional arc: Curiosity > Confusion > Partial clarity > Aha > Satisfaction
 - Find a natural analogy (or skip it if none fits)
 - Open from what the viewer already knows, then build toward the technical concept
 - **One sentence per scene heading, max ~15 words** — if you're writing more, split it
 - **Every scene should have animated visuals** — text captions the animation, not the other way around
 - Use a real worked example with actual values when possible
 - Progressive reveal in every scene — staggered delays, never dump everything at once
+- **Vary motion style to match the topic's mood** — don't use identical spring configs for every episode
 - End with CTA on last scene
 - Use as many scenes as needed — no limit on count, just stay under 2 minutes total
 
 ## Voiceover Script & Audio Sync
 
-**By default, every episode includes voiceover.** When generating a new episode, always produce all deliverables: scenes, voiceover script, ElevenLabs generation script, audio-synced VideoTemplate, AND run the generation script to produce MP3 files.
-
-**Opt-out:** If the user says **"no voice"**, **"no voiceover"**, **"silent"**, or **"no audio"** in their prompt, skip everything in this section — no transcript, no generation script, no audio wiring in VideoTemplate. Just generate the scenes and VideoTemplate without audio.
+**Voiceover is opt-in.** By default, generate episodes WITHOUT voiceover — just scenes and VideoTemplate. Only produce voiceover deliverables (transcript, ElevenLabs script, audio sync, MP3 generation) when the user explicitly asks for it (e.g., **"with voice"**, **"add voiceover"**, **"generate audio"**).
 
 ### 1. Write the Voiceover Transcript
 
@@ -335,19 +677,132 @@ ep<N>-<slug>/
     └── ...
 ```
 
+## Manim Animations (Optional — Use Your Judgment)
+
+**Default to React + Framer Motion for all scenes.** However, if you genuinely think a scene would benefit from Manim (e.g., tree structures growing level-by-level, hash round animations, byte-level dissections, elliptic curve math, smooth morphing transforms), go ahead and use it. The bar is: "Would this look significantly better animated in Manim than in Framer Motion?" If yes, use Manim. If it's just boxes and text appearing, stick with React.
+
+When using Manim:
+- Use the base class from `manim/base.py` (provides `BitcoinScene` with brand colors)
+- Render clips to `client/public/video/ep<N>-<slug>/` via `node scripts/render-manim.mjs ep<N>-<slug>`
+- Embed in React scenes as `<motion.video src="/video/ep<N>-<slug>/clip.mp4" autoPlay muted playsInline />`
+- Keep clips short (3-8s), use brand colors only, resolution 1920×1080
+- Render: `source .venv/bin/activate && manim -qh manim/ep<N>_clip.py SceneName`
+- Preview (low quality): `manim -pql manim/ep<N>_clip.py SceneName`
+
+### Manim API Quick Reference (ManimCE)
+
+We use **ManimCE (Community Edition)**: `from manim import *`
+
+#### Key Animations
+```python
+# Appearing
+self.play(Write(tex))                  # Handwriting style (equations)
+self.play(Create(line))                # Draw path/shape progressively
+self.play(FadeIn(mob, shift=UP))       # Fade in from direction
+self.play(GrowArrow(arrow))            # Arrow grows from start
+self.play(DrawBorderThenFill(mob))     # Outline then fill
+
+# Transforming — ALWAYS prefer transforms over FadeOut/FadeIn pairs
+self.play(TransformMatchingShapes(source, target))  # Morph matching parts
+self.play(ReplacementTransform(source, target))     # Replace one with another
+self.play(TransformFromCopy(source, target))        # Transform a copy (source stays)
+self.play(mob.animate.shift(RIGHT).set_color(RED))  # Chained property animation
+
+# Staggered reveals (very common, natural feel)
+self.play(LaggedStartMap(FadeIn, group, lag_ratio=0.1))
+
+# Highlighting
+rect = SurroundingRectangle(mob, buff=0.2, color=YELLOW)
+self.play(Create(rect))
+self.play(Indicate(mob))               # Brief scale+color flash
+self.play(Flash(point, color=YELLOW))  # Radial flash
+```
+
+#### Rate Functions (Easing)
+```python
+smooth        # Default — good general purpose
+linear        # Constant speed
+ease_in_expo  # Dramatic entrance
+ease_out_bounce  # Playful landing
+there_and_back   # Emphasis pulse (scale up then back)
+rush_into     # Quick start, slow end
+```
+
+#### Updaters & ValueTrackers
+```python
+# Dynamic following
+label.add_updater(lambda m: m.next_to(dot, UP))
+
+# Animated parameter
+tracker = ValueTracker(0)
+dot.add_updater(lambda m: m.move_to(axes.c2p(tracker.get_value(), f(tracker.get_value()))))
+self.play(tracker.animate.set_value(5), run_time=3)
+
+# Auto-rebuilding mobject
+line = always_redraw(lambda: Line(start.get_center(), end.get_center()))
+```
+
+#### Bitcoin-Relevant Patterns
+```python
+# Cascade/domino — blocks breaking one by one
+for i, block in enumerate(blocks[changed_index:]):
+    self.play(block.animate.set_color(RED), Flash(block.get_center(), color=RED), run_time=0.5)
+    self.wait(0.3)
+
+# Bit grid — render real hash output
+def get_bit_grid(bit_string, n_cols=32):
+    bits = VGroup(*[Text(b, font="Courier New").scale(0.3) for b in bit_string])
+    bits.arrange_in_grid(rows=len(bit_string) // n_cols, cols=n_cols, buff=0.05)
+    return bits
+
+# Network broadcast — signal propagating through nodes
+for target in connected_nodes:
+    edge = Line(source.get_center(), target.get_center(), color=YELLOW)
+    self.play(Create(edge), run_time=0.3)
+    self.play(Flash(target.get_center(), color=YELLOW), run_time=0.3)
+
+# Communication channel — Alice → [network] → Bob
+sender = VGroup(Dot(color=BLUE), Text("Alice", color=BLUE).scale(0.4)).arrange(DOWN)
+receiver = VGroup(Dot(color=GREEN), Text("Bob", color=GREEN).scale(0.4)).arrange(DOWN)
+sender.move_to(LEFT * 5); receiver.move_to(RIGHT * 5)
+channel = DashedLine(sender.get_right(), receiver.get_left(), color=GREY)
+```
+
+#### Manim Best Practices
+- **Transform, don't replace** — `TransformMatchingShapes(a, b)` over `FadeOut(a)` then `FadeIn(b)`. The viewer sees the connection.
+- **LaggedStart** — keep `lag_ratio` between 0.05-0.2 for natural feel
+- **Progressive disclosure** — build equations term by term, never flash full formulas
+- **`self.wait()`** generously — let visuals breathe, especially after key reveals
+- **Rhythm: fast-fast-SLOW** — quick setup moves, then slow down on the key insight
+- Use `VGroup` for grouping, `.copy()` when reusing mobjects
+- Use `BackgroundRectangle(text, fill_opacity=0.8)` for readability over busy visuals
+
 ## Adding a New Episode
 
-All steps below are done automatically when you ask for a new episode. Voiceover steps (2, 3, 5, 9, 10) are skipped if user says "no voice" / "no voiceover" / "silent" / "no audio".
+All steps below are done automatically when you ask for a new episode. Voiceover steps are ONLY done when the user explicitly asks for voiceover.
 
-1. Create `client/src/episodes/ep<N>-<slug>/` with `VideoTemplate.tsx` and `scenes/` folder
-2. Write the voiceover transcript (`transcript.txt`) — one paragraph per scene
-3. Create the ElevenLabs generation script (`scripts/generate-voiceover-ep<N>.mjs`)
-4. Define `SCENE_DURATIONS` in VideoTemplate — estimate from voiceover word count (~2.5 words/sec + 2-3s buffer)
-5. Add `SCENE_AUDIO` array and audio sync `useEffect` to VideoTemplate
-6. Create each `Scene<N>.tsx` — align animation delays to voiceover timing
-7. Register in `client/src/App.tsx` routes and `client/src/pages/Home.tsx` episode list
-8. Export from `client/src/episodes/index.ts`
-9. **Run the generation script** (`node scripts/generate-voiceover-ep<N>.mjs`) to produce all MP3 files — do NOT skip this step, the audio must exist before the user previews
-10. Listen to generated audio, fine-tune `SCENE_DURATIONS` and animation delays
-11. Preview: `npm run dev:client` → navigate to `#ep<N>`
-12. Record: `node scripts/record.mjs`
+### Step 0: Visual Concept (BEFORE writing any code)
+Before touching code, answer these three questions for the episode:
+
+1. **What's the ONE signature visual?** — The unique animation/diagram that makes this episode visually distinct. Not a DiagramBox. Something custom that fits THIS topic. Examples: a cascade of breaking blocks, an elliptic curve with a bouncing point, a binary tree growing from leaves, a network of nodes propagating signals.
+
+2. **What's the episode accent palette?** — Pick 1-2 colors beyond brand orange that reinforce the topic's mood. Security = reds. Crypto math = purples. Networking = greens. Define these as local CSS variables or inline styles in VideoTemplate.
+
+3. **What layout pattern fits this content?** — Don't default to centered-stack. Consider: split-screen, persistent sidebar, full-bleed diagram, communication channel, timeline, or something entirely new.
+
+4. **What custom components does this episode need?** — If the topic has a natural visual language (tree nodes, network graphs, byte grids, circuit diagrams, timelines), build a small custom component for it. It lives in the episode folder, not in the shared library. Keep shared `CE`/`morph`/`springs` for infrastructure, but let the visual layer be fresh.
+
+5. **What animation style fits the mood?** — Not every episode should move the same way. A security attack episode might use sharp, aggressive transitions. A cryptography deep-dive might use slow, mathematical morphs. A consensus episode might use synchronized parallel animations. Pick spring configs and timing that match the emotional register.
+
+### Steps 1-8: Implementation
+
+1. Create `client/src/episodes/ep<N>-<slug>/VideoTemplate.tsx` — single-canvas component using `CE`, `morph`, and **custom topic-specific components**
+2. Define `SCENE_DURATIONS` — estimate from content density (simple: 6-7s, diagram: 8-10s, complex: 10-12s)
+3. Build the signature visual first — the core custom animation that defines the episode's look. Then build supporting scenes around it.
+4. **(Only if user asks for voiceover)** Write transcript, generate audio, sync delays
+5. Register in `client/src/App.tsx` routes and `client/src/pages/Home.tsx` episode list
+6. Export from `client/src/episodes/index.ts`
+7. Preview: `npm run dev:client` → navigate to `#ep<N>`
+8. Record: `node scripts/record.mjs`
+
+**Legacy episodes** (ep1–ep6) use the old slide-based pattern with `scenes/` folders and `AnimatePresence mode="wait"`. Do not convert them — they work fine. New episodes use the single-canvas pattern.
