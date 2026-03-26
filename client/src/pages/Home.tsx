@@ -8,7 +8,7 @@ const EPISODES = [
     description:
       'How a fencepost bug in Bitcoin\'s difficulty retargeting code biases difficulty upward by ~0.05%.',
     scenes: 15,
-    duration: '2:20',
+    duration: '3:10',
     status: 'published' as const,
   },
   {
@@ -43,7 +43,7 @@ const EPISODES = [
   },
   {
     id: 'ep5',
-    number: 5,
+    number: 4,
     title: 'The 64-Byte Transaction Bug',
     description:
       'How a Merkle tree ambiguity lets attackers fake SPV proofs — and the BIP 54 fix that bans it.',

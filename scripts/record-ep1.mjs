@@ -4,43 +4,12 @@ import { resolve, join } from 'path';
 import { execSync, spawn } from 'child_process';
 
 const PORT = 5173;
-const URL = `http://localhost:${PORT}/#ep4?record`;
+const URL = `http://localhost:${PORT}/#ep1?record`;
 const OUTPUT_DIR = resolve('.');
-const AUDIO_DIR = './client/public/audio/ep4-garbled-circuits';
+const FULL_AUDIO = './client/public/audio/ep1-off-by-one/full.mp3';
 
-// Scene durations in ms (must match VideoTemplate.tsx)
-const SCENE_DURATIONS = [
-  13000,  // scene1
-  19000,  // scene2
-  22000,  // scene3
-  17500,  // scene4
-  23000,  // scene5
-  23000,  // scene6
-  10500,  // scene7
-  19000,  // scene7b
-  28000,  // scene8
-  24000,  // scene9
-  18000,  // scene9b
-  21500,  // scene10
-  24500,  // scene11
-  27000,  // scene12
-  32000,  // scene13
-  22500,  // scene14
-  13000,  // scene14b
-  27000,  // scene14c
-  30000,  // scene14d
-  13500,  // scene15
-];
-
-const SCENE_AUDIO_FILES = [
-  'scene1.mp3', 'scene2.mp3', 'scene3.mp3', 'scene4.mp3', 'scene5.mp3',
-  'scene6.mp3', 'scene7.mp3', 'scene7b.mp3', 'scene8.mp3', 'scene9.mp3',
-  'scene9b.mp3', 'scene10.mp3', 'scene11.mp3', 'scene12.mp3', 'scene13.mp3',
-  'scene14.mp3', 'scene14b.mp3', 'scene14c.mp3', 'scene14d.mp3', 'scene15.mp3',
-];
-
-const AUDIO_DELAY = 400; // ms delay before audio plays in each scene
-const TOTAL_DURATION = SCENE_DURATIONS.reduce((a, b) => a + b, 0) + 3000;
+// Total video duration in ms (sum of all SCENE_DURATIONS + buffer)
+const TOTAL_DURATION = 7660+14710+12560+12730+12220+6710+12900+9080+14140+20800+16110+16770+13530+13240+9194 + 3000;
 
 // Render at 2x resolution for sharper output — Playwright downscales to recordVideo.size
 const RENDER_SCALE = 2;
@@ -64,36 +33,7 @@ async function waitForServer(url, timeout = 30000) {
 }
 
 async function record() {
-  // Step 0: Create combined audio track with proper timing
-  console.log('Creating combined audio track...');
-  let offset = 0;
-  const filterParts = [];
-  const inputArgs = [];
-
-  for (let i = 0; i < SCENE_DURATIONS.length; i++) {
-    const audioFile = join(AUDIO_DIR, SCENE_AUDIO_FILES[i]);
-    inputArgs.push(`-i "${audioFile}"`);
-    const delayMs = offset + AUDIO_DELAY;
-    filterParts.push(`[${i}]adelay=${delayMs}|${delayMs}[a${i}]`);
-    offset += SCENE_DURATIONS[i];
-  }
-
-  const mixInputs = Array.from({ length: SCENE_DURATIONS.length }, (_, i) => `[a${i}]`).join('');
-  const filterComplex = filterParts.join(';') + `;${mixInputs}amix=inputs=${SCENE_DURATIONS.length}:normalize=0[out]`;
-
-  const combinedAudio = join(OUTPUT_DIR, '_combined_audio_ep4.mp3');
-  try {
-    execSync(
-      `ffmpeg -y ${inputArgs.join(' ')} -filter_complex "${filterComplex}" -map "[out]" -ac 2 -ar 44100 "${combinedAudio}"`,
-      { stdio: 'pipe' }
-    );
-    console.log('  Combined audio created');
-  } catch (e) {
-    console.error('Failed to create combined audio:', e.stderr?.toString());
-    return;
-  }
-
-  // Step 1: Start the dev server
+  // Step 0: Start the dev server
   console.log(`Starting dev server on port ${PORT}...`);
   const devServer = spawn(join(NODE20_BIN, 'npx'), ['vite', 'dev', '--port', String(PORT)], {
     cwd: resolve('.'),
@@ -115,7 +55,7 @@ async function record() {
     return;
   }
 
-  // Step 2: Record video with Playwright at high resolution
+  // Step 1: Record video with Playwright at high resolution
   console.log(`Launching browser (${WIDTH * RENDER_SCALE}x${HEIGHT * RENDER_SCALE} render → ${WIDTH}x${HEIGHT} capture)...`);
   const browser = await chromium.launch();
   const context = await browser.newContext({
@@ -169,9 +109,9 @@ async function record() {
   await page.goto(URL, { waitUntil: 'networkidle' });
 
   console.log('Waiting for content to render...');
-  await page.waitForSelector('[data-video="ep4"]', { timeout: 15000 });
+  await page.waitForSelector('[data-video="ep1"]', { timeout: 15000 });
 
-  // Get exact mount time from inside the browser (ms since page navigation start)
+  // Get exact mount time from inside the browser
   const mountTimeMs = await page.evaluate(() => window.__mountTime);
   const audioOffset = mountTimeMs / 1000;
   console.log(`  Component mounted at ${mountTimeMs.toFixed(0)}ms (trim offset: ${audioOffset.toFixed(2)}s)`);
@@ -187,7 +127,7 @@ async function record() {
   await context.close();
   await browser.close();
 
-  // Step 3: Find the recorded webm
+  // Step 2: Find the recorded webm
   const webmFiles = readdirSync(OUTPUT_DIR)
     .filter(f => f.endsWith('.webm'))
     .map(f => ({ name: f, time: statSync(join(OUTPUT_DIR, f)).mtimeMs }))
@@ -201,24 +141,22 @@ async function record() {
 
   const rawVideo = join(OUTPUT_DIR, webmFiles[0].name);
 
-  // Step 4: Trim page-load dead time + downscale + merge audio → final 1080p MP4
-  // -ss trims the beginning of the video (page load time before animations start)
-  // CRF 14 = high quality, preset slow = good compression, lanczos = sharp downscale
+  // Step 3: Trim page-load dead time + downscale + merge audio → final 1080p MP4
   console.log('Trimming + downscaling + merging audio → 1080p MP4...');
   const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).replace(' ', '-');
   const time = new Date().toLocaleTimeString('en-US', { hour12: false }).replace(/:/g, '-');
-  const finalName = `GarbledCircuits-Explainer-${date}-${time}.mp4`;
+  const finalName = `OffByOne-Explainer-${date}-${time}.mp4`;
   const finalPath = join(OUTPUT_DIR, finalName);
 
   try {
     execSync(
-      `ffmpeg -y -ss ${audioOffset.toFixed(2)} -i "${rawVideo}" -i "${combinedAudio}" ` +
+      `ffmpeg -y -ss ${audioOffset.toFixed(2)} -i "${rawVideo}" -i "${FULL_AUDIO}" ` +
       `-vf "scale=${WIDTH}:${HEIGHT}:flags=lanczos" ` +
       `-c:v libx264 -preset slow -crf 14 -pix_fmt yuv420p ` +
       `-c:a aac -b:a 192k -shortest "${finalPath}"`,
       { stdio: 'pipe', maxBuffer: 50 * 1024 * 1024 }
     );
-    console.log(`\n  Video saved: ${finalPath}`);
+    console.log(`\n  ✓ Video saved: ${finalPath}`);
   } catch (e) {
     console.error('Failed to merge:', e.stderr?.toString().slice(-500));
     const fallback = join(OUTPUT_DIR, finalName.replace('.mp4', '.webm'));
@@ -228,9 +166,8 @@ async function record() {
     return;
   }
 
-  // Cleanup temp files
+  // Cleanup
   try { unlinkSync(rawVideo); } catch {}
-  try { unlinkSync(combinedAudio); } catch {}
 
   // Stop dev server
   devServer.kill();

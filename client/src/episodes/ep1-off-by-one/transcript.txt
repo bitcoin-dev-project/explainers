@@ -1,0 +1,96 @@
+EPISODE 1 — SATOSHI'S OFF-BY-ONE ERROR
+Voice-over transcript for ElevenLabs
+(Each slide is marked with its scene number. Timing will be adjusted later to match animations.)
+
+---
+
+SLIDE 1 — Title (scene 0, ~6s)
+
+Satoshi's off-by-one error. A tiny bug hiding in Bitcoin's difficulty adjustment since day one.
+
+---
+
+SLIDE 2 — Epochs (scene 1, ~10s)
+
+Every two thousand sixteen blocks, Bitcoin recalculates its mining difficulty. If blocks came too fast, difficulty goes up. Too slow, it goes down. At each boundary, the network retargets.
+
+---
+
+SLIDE 3 — Retarget Period (scene 2, ~9s)
+
+This cycle of two thousand sixteen blocks is called a retarget period. Block zero through block two thousand fifteen — one full cycle. But how long should it actually take?
+
+---
+
+SLIDE 4 — Quiz (scene 3, ~8s)
+
+Quick question before we dive in. How long does one retarget period take? Is it exactly two weeks? Or two weeks minus ten minutes? Think about it — we'll come back to this.
+
+---
+
+SLIDE 5 — 14 days calc (scene 4, ~9s)
+
+Each block takes about ten minutes. So two thousand sixteen blocks times ten minutes gives us fourteen days. Two weeks of blocks — that's the target.
+
+---
+
+SLIDE 6 — But is it really? (scene 5, ~5s)
+
+But is it really fourteen days? Let's look at how Bitcoin actually measures time.
+
+---
+
+SLIDE 7 — Fencepost insight (scene 6, ~8s)
+
+Here's the key. Time is measured in the gaps between blocks, not the blocks themselves. Five blocks, four gaps. Like fence posts — five posts, four sections of fence.
+
+---
+
+SLIDE 8 — Bitcoin asks (scene 7, ~7s)
+
+To adjust difficulty, Bitcoin asks: how long did the last epoch take? It compares two block timestamps to find out.
+
+---
+
+SLIDE 9 — Correct measurement (scene 8, ~9s)
+
+The correct measurement: take the timestamp of block four thousand thirty-one, subtract the timestamp of block two thousand fifteen. That gives you two thousand sixteen intervals — exactly one full epoch.
+
+---
+
+SLIDE 10 — The bug (scene 9, ~12s)
+
+But Satoshi's code does something different. It subtracts two thousand fifteen instead of two thousand sixteen. So it starts measuring from block two thousand sixteen, not two thousand fifteen. The gap between the two epochs is never counted. One interval, lost. That's the off-by-one error.
+
+---
+
+SLIDE 11 — Math (scene 10, ~10s)
+
+Let's do the math. Two thousand fifteen times ten minutes equals twenty thousand one hundred fifty minutes. The correct value — two thousand sixteen times ten — is twenty thousand one hundred sixty. A difference of exactly ten minutes.
+
+---
+
+SLIDE 12 — Days comparison (scene 11, ~10s)
+
+Converting to days: Bitcoin measures thirteen point nine nine three days instead of the expected fourteen. Ten minutes short. Every single retarget period. Bitcoin thinks blocks came slightly too fast, so it bumps difficulty up.
+
+---
+
+SLIDE 13 — +0.05% bias / HIGHLIGHT (scene 12, ~9s)
+
+Ten minutes out of twenty thousand one hundred sixty. That's a plus zero point zero five percent upward bias on difficulty. Every two weeks. Baked in since the genesis block.
+
+---
+
+SLIDE 14 — Quiz reveal (scene 13, ~9s)
+
+Remember the question? The answer is B — two weeks minus ten minutes. Two thousand fifteen intervals times ten minutes gives you thirteen days, twenty-three hours, and fifty minutes.
+
+---
+
+SLIDE 15 — CTA (scene 14, ~6s)
+
+Next up: how the Consensus Cleanup soft fork fixes the timewarp attack. Follow at bitcoin devs for more.
+
+---
+END OF TRANSCRIPT

@@ -1,5 +1,5 @@
 /**
- * Episode 5 — The 64-Byte Transaction Bug (v4 — two-tx attack + TXID grinding)
+ * Episode 4 — The 64-Byte Transaction Bug (v4 — two-tx attack + TXID grinding)
  *
  * Changes from v3:
  *   - NEW scene 7: "The Two Transactions" — real 64B tx + fake payment tx setup
@@ -586,7 +586,7 @@ export default function VideoTemplate() {
       {/* ═══════ SCENE 0: Title ═══════ */}
       <CE s={s} enter={0} exit={1} delay={0.3}
         className="absolute inset-0 flex flex-col items-center justify-center gap-[2vh]">
-        <Badge delay={0.4} variant="danger" size="md">Episode 5</Badge>
+        <Badge delay={0.4} variant="danger" size="md">Episode 4</Badge>
         <motion.h1 style={{
           fontSize: '4.5vw', fontWeight: 700, color: 'var(--color-text-primary)',
           fontFamily: 'var(--font-display)', textAlign: 'center', lineHeight: 1.1,
