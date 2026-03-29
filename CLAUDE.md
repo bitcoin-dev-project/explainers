@@ -5,7 +5,7 @@ Animated Bitcoin educational explainers using React, recorded to MP4 via Playwri
 ## Workspace
 - `client/src/episodes/` — each episode folder has `VideoTemplate.tsx` + custom components
 - `client/src/lib/video/` — shared hooks (`useVideoPlayer`), canvas primitives (`CE`, `morph`, `sceneRange`), `DevControls`, animation presets, diagram components
-- `scripts/` — recording (`record.mjs`), voiceover generation (`generate-voiceover.mjs`), auto-episode pipeline (`auto-episode.sh`)
+- `scripts/` — recording (`record.mjs`), voiceover generation (`generate-voiceover.mjs`), auto-episode pipeline (`auto-episode.sh`), **visual QA (`visual-qa.mjs`)**
 - `client/public/audio/` — scene voiceover MP3s
 - `references/` — brand guidelines, writing style references
 
@@ -105,145 +105,153 @@ export default function VideoTemplate() {
 }
 ```
 
-## Camera Component (`@/lib/video/camera`)
+## Stage/Act System — Declarative Layout (`@/lib/video/stage`) ⭐ NEW
 
-`<Camera>` wraps your canvas content and handles viewport pan/zoom per scene:
+**Use Stage/Act for all new episodes (ep13+).** It eliminates manual positioning math entirely — the #1 source of visual bugs in episodes 7-12.
 
-```tsx
-import { Camera } from '@/lib/video';
-
-<Camera scene={s} shots={{
-  0: { x: 0, y: 0, scale: 1 },              // wide overview
-  3: { x: '-50vw', y: '-30vh', scale: 2.5 }, // zoom into detail
-  6: { x: '-120vw', y: 0, scale: 1.2 },      // pan to next section
-  9: { x: 0, y: 0, scale: 1 },               // pull back
-}}>
-  {/* Content at fixed positions on a large canvas */}
-  <BlockDiagram style={{ position: 'absolute', left: '60vw', top: '30vh' }} />
-  <DetailView style={{ position: 'absolute', left: '140vw', top: '20vh' }} />
-</Camera>
-```
-
-Props: `scene`, `shots` (scene-indexed positions), `width` (default '200vw'), `height` (default '200vh'), `transition` (default: slow cinematic spring). Use when the topic has "big picture → detail → big picture" structure.
-
-## Canvas Positioning Math (MANDATORY)
-
-**This is the #1 source of visual bugs.** Every episode using Camera MUST verify positioning math. Without verification, elements WILL end up off-screen, overlapping, or clipped.
-
-### The Formula
-Camera uses `transformOrigin: '0 0'`. Content at canvas position `(cx, cy)` with Camera at `(x, y, scale)`:
-
-```
-screen_x = cx × scale + x
-screen_y = cy × scale + y
-```
-
-For content to be visible on the 100vw × 100vh viewport:
-```
-0 ≤ screen_x ≤ 100vw    (left/right)
-0 ≤ screen_y ≤ 100vh     (top/bottom)
-```
-
-For content with width `w` and height `h`, the full element is visible when:
-```
-0 ≤ (cx × scale + x)         (left edge)
-(cx + w) × scale + x ≤ 100vw  (right edge)
-```
-
-### Calculating Camera Shots
-To center content at canvas `(cx, cy)` on screen at `(target_x, target_y)`:
-```
-camera_x = target_x - cx × scale
-camera_y = target_y - cy × scale
-```
-
-Example: Element at canvas `(145vw, 30vh)`, want it at screen center `(50vw, 50vh)` with scale 1.5:
-```
-camera_x = 50 - 145 × 1.5 = 50 - 217.5 = -167.5vw
-camera_y = 50 - 30 × 1.5 = 50 - 45 = -5vh (set as '-5vh' not -5)
-```
-
-### Canvas Zone Planning (required in storyboard)
-Before coding, divide the canvas into non-overlapping zones and assign each act's visuals:
-
-```
-Canvas: 300vw × 200vh
-
-Zone A (left):    0–90vw     ← Act 1 components
-Zone B (center):  100–190vw  ← Act 2 components
-Zone C (right):   200–290vw  ← Act 3-4 components
-```
-
-Rules:
-- Leave 10vw gaps between zones so zoomed-in views don't bleed across
-- Components within a zone should not overlap vertically unless intentional
-- Each camera shot targets ONE zone — don't try to show two zones at once (except at scale < 1 for overview shots)
-
-### Flex Layout Position Trap
-When components use nested flex layouts with gaps, the position of child N is NOT simply `N × child_width`. You must account for ALL spacing:
-
-```
-// WRONG: missing inner gaps and arrow widths
-left: calc(4 * (blockWidth + gap))  // = 46vw, but actual position is 66vw!
-
-// RIGHT: account for everything in each slot
-slot_width = block + inner_gap + arrow + container_gap  // = 16.5vw
-left: calc(4 * slot_width)  // = 66vw ✓
-```
-
-**Always verify flex positions by computing them manually**, or use absolute positioning for predictable layout.
-
-### Mandatory Position Audit
-Every VideoTemplate.tsx using Camera MUST include a `POSITION AUDIT` comment block that proves each scene's content is on-screen:
+Instead of placing elements at absolute canvas coordinates and computing camera shots with `focus(cx, cy, scale)`, you declare Acts and Stage auto-frames them.
 
 ```tsx
-/**
- * POSITION AUDIT — verify every scene's content is within viewport
- * Formula: screen = canvas × scale + camera
- *
- * Scene 0: camera(0, 0, 1)
- *   BlockStrip at (5vw, 25vh) → screen(5, 25) ✓ visible
- *
- * Scene 2: camera(-86vw, -18vh, 1.8)
- *   Block91722 at (71vw, 25vh) → screen(71×1.8 - 86, 25×1.8 - 18) = (41.8, 27) ✓
- *   Block width 9vw×1.8=16.2vw → right edge 58vw ✓
- *
- * Scene 5: camera(-95vw, 0, 1)
- *   UTXOHashmap at (105vw, 10vh) → screen(10, 10) ✓
- *   right edge (105+80)×1 - 95 = 90vw ✓
- */
+import { Stage, Act } from '@/lib/video';
+
+<Stage scene={s}>
+  <Act scenes={[0, 1, 2]}>
+    <TitleScreen scene={s} />
+  </Act>
+  <Act scenes={[3, 4, 5]}>
+    <PaddingVisual scene={s} />
+  </Act>
+  <Act scenes={[6, 7, 8]} shots={{
+    6: { scale: 0.9 },
+    7: { scale: 1.5, x: 70, y: 40 },
+  }}>
+    <DetailDiagram scene={s} />
+  </Act>
+</Stage>
 ```
 
-**If you skip this step, content WILL be off-screen.** The critique phase flags missing audits as MUST FIX.
+### How It Works
+- **Stage** lays out Acts side by side (horizontal strip or grid) on a canvas
+- **Each Act is viewport-sized** (100vw × 100vh) — content fills the full screen
+- When the scene changes, Stage **auto-pans** to center the active Act
+- **No manual coordinates, no camera math, no position audits**
+- Content inside each Act uses normal layout (flex, grid, absolute within 100vw×100vh)
 
-### Common Positioning Mistakes
-1. **Forgetting transformOrigin is '0 0'**: Scale zooms from top-left, not center. Content moves right/down when scaled up.
-2. **Using vw/vh values as camera offsets without the formula**: `x: '-50vw'` does NOT show content at 50vw. It shifts the entire canvas 50vw left.
-3. **Zooming too much**: At scale 1.5, the viewport only shows 66vw × 66vh of canvas. A component wider than 66vw will be clipped.
-4. **Not checking edges**: Verify BOTH left+right edges and top+bottom edges of each component, not just the top-left corner.
-5. **sceneRange mismatch**: If a component uses `sceneRange(s, 5, 10)` but its internal logic shows content at scene 3, those scenes will be empty.
-
-## Camera & Viewport Movement
-
-Static 1920x1080 with elements appearing/disappearing = slides. Real animation uses camera movement.
-
-**Technique: oversized canvas + viewport transform.** Create a canvas larger than the viewport (e.g., 3840x2160) and use `morph()` or GSAP on a wrapper to pan/zoom:
-
+### Act Props
 ```tsx
-// Wrapper that acts as a "camera"
-<motion.div
-  style={{ width: '200vw', height: '200vh', position: 'absolute' }}
-  {...morph(s, {
-    0: { x: 0, y: 0, scale: 1 },           // wide shot
-    3: { x: '-50vw', y: '-30vh', scale: 2 }, // zoom into detail
-    6: { x: 0, y: 0, scale: 1 },            // pull back
-  })}
+<Act
+  scenes={[3, 4, 5]}           // scenes when this Act is the primary focus
+  shots={{                      // optional: within-Act zoom/pan per scene
+    4: { scale: 1.5, x: 70, y: 40 },  // zoom to 1.5x at 70% across, 40% down
+  }}
 >
-  {/* All scene content lives here */}
-</motion.div>
+  {children}                    // design as if filling 100vw × 100vh
+</Act>
 ```
 
-Use this when the topic has a "big picture → detail → big picture" structure (most topics do). Zoom into a block to see transactions. Pan across a timeline. Pull back to show the whole chain.
+- `scenes` — which scene indices this Act owns. Stage pans to this Act during these scenes.
+- `shots` — per-scene zoom within the Act. `x`/`y` are percentages (0-100, default 50 = center). `scale` > 1 zooms in.
+- Shots use the same "highest key ≤ scene" resolution as `morph()` — set a shot at scene 4 and it holds for scenes 5, 6, etc. until overridden.
+
+### Stage Props
+```tsx
+<Stage
+  scene={s}                    // current scene from useVideoPlayer
+  layout="row"                 // 'row' (default) or 'grid'
+  columns={3}                  // grid columns (default 3, ignored for 'row')
+  gap={10}                     // gap between Acts in vw units (default 10)
+  transition={customSpring}    // override pan/zoom spring
+  overview={[20, 21, 22]}      // scenes where Stage zooms out to show ALL Acts
+>
+```
+
+### Overview Mode
+```tsx
+<Stage scene={s} overview={[20, 21, 22]}>
+```
+During overview scenes, Stage zooms out to show all Acts simultaneously with padding. Great for recap/summary scenes.
+
+### Grid Layout
+```tsx
+<Stage scene={s} layout="grid" columns={3}>
+```
+Acts arranged in rows and columns instead of a horizontal strip. Useful for comparison or matrix-style episodes.
+
+### Overlays (non-Act children)
+Non-Act children are rendered as viewport-relative overlays (fixed to the screen, not panning with Acts):
+```tsx
+<Stage scene={s}>
+  <Act scenes={[0, 1]}><Intro scene={s} /></Act>
+  <Act scenes={[2, 3]}><Detail scene={s} /></Act>
+
+  {/* This stays fixed on screen regardless of which Act is active */}
+  <ProgressBar scene={s} style={{ position: 'absolute', bottom: 0 }} />
+</Stage>
+```
+
+### Why Stage/Act Eliminates Positioning Bugs
+| Old Camera System | New Stage/Act System |
+|---|---|
+| Content at absolute canvas coords (`left: '145vw'`) | Content fills 100vw × 100vh — normal layout |
+| Manual camera shots (`focus(145, 30, 1.5)`) | Stage auto-pans to active Act |
+| Position audit math (`screen = canvas × scale + camera`) | No math needed |
+| Zone planning with 10vw gaps | Automatic gap management |
+| Content easily placed off-screen | Content can't be off-screen — it fills the viewport |
+| `sceneRange` must match camera pans | Acts declare their own scene ranges |
+
+### VideoTemplate Pattern with Stage/Act
+```tsx
+export default function VideoTemplate() {
+  const player = useVideoPlayer({ durations: SCENE_DURATIONS });
+  const s = player.currentScene;
+
+  return (
+    <div style={{ backgroundColor: EP_COLORS.bg }}>
+      <Stage scene={s}>
+        {/* Act 1: Introduction */}
+        <Act scenes={[0, 1, 2]}>
+          <TitleScreen scene={s} />
+        </Act>
+
+        {/* Act 2: Core concept — zoom into detail at scene 4 */}
+        <Act scenes={[3, 4, 5]} shots={{ 4: { scale: 1.8, x: 30, y: 50 } }}>
+          <CoreVisual scene={s} />
+        </Act>
+
+        {/* Act 3: Consequence / "why it matters" */}
+        <Act scenes={[6, 7, 8]}>
+          <ConsequenceVisual scene={s} />
+        </Act>
+
+        {/* Act 4: Resolution + CTA */}
+        <Act scenes={[9, 10]}>
+          <Resolution scene={s} />
+        </Act>
+      </Stage>
+
+      <DevControls player={player} />
+    </div>
+  );
+}
+```
+
+## Camera Component — Legacy (`@/lib/video/camera`)
+
+> **For new episodes (ep13+), use Stage/Act instead.** Camera is kept for backward compatibility with episodes 7-12.
+
+`<Camera>` wraps content on an oversized canvas and pans/zooms via manual coordinate math. See episodes 7-12 for usage examples. Requires `focus()` / `fitRect()` helpers and manual position verification.
+
+## Automated Visual QA (`scripts/visual-qa.mjs`)
+
+**Run after building any episode** (Camera-based or Stage-based). Opens the episode in Playwright at 1920×1080, steps through every scene, checks element positions with `getBoundingClientRect()`.
+
+```bash
+node scripts/visual-qa.mjs ep11 ./visual-qa-output
+```
+
+Reports: **FAIL** (off-screen near-miss), **WARN** (clipped >40%), **INFO** (far-off zones). Generates screenshots + markdown report.
+
+**Do NOT write manual POSITION AUDIT comments** — the automated tool replaces manual math audits.
 
 ## Scene Composition — No Single-Element Episodes
 **The #1 quality killer is one visual element staying on screen for the entire video** with only camera moves and text changes around it. This makes the episode feel like a tech demo, not an explainer. Each act should have its own distinct visual composition:
@@ -427,7 +435,7 @@ The shared library has scene transitions (`sceneTransitions.*`), element animati
 - [ ] CE using default fade-up (`opacity: 0, y: 15`) — use `createThemedCE()` with a different theme
 - [ ] Centered layout: heading top, diagram middle, label bottom
 - [ ] Same `springs.snappy` for all animations — define EP_SPRINGS
-- [ ] No camera/viewport movement — use `<Camera>`
+- [ ] No camera/viewport movement — use `<Stage>` with multiple Acts
 - [ ] No GSAP used — use `useSceneGSAP` for choreographed sequences
 - [ ] Core visual built from DiagramBox/FlowRow
 - [ ] **One element visible the entire video** — each act needs its own visual centerpiece
@@ -456,7 +464,7 @@ Answer these before writing any code:
 1. **What's the signature visual?** Not a DiagramBox. What custom animation makes this episode instantly recognizable?
 2. **What animation library drives it?** GSAP timeline? Three.js scene? React Spring physics? SVG path morphing?
 3. **What's the background?** Not beige by default. What mood does this topic demand?
-4. **What's the camera plan?** Where do we zoom in? Where do we pull back?
+4. **What's the Act structure?** How many Acts? Which ones need within-Act zoom (`shots`)? Any overview scenes?
 5. **What's the motion verb?** How do elements enter/move/exit? (Not "fade in from below")
 
 ### Encouraged Custom Techniques
@@ -728,7 +736,7 @@ When building a new episode, **do NOT read existing episode VideoTemplate.tsx fi
 
 **What a new episode MUST do differently:**
 - Use `createThemedCE(ceThemes.xxx)` — pick a transition theme that fits the topic (blurIn, clipCircle, glitch, etc.). NEVER use bare CE with the default fade-up.
-- Use Camera component for at least one zoom/pan transition
+- Use Stage/Act system for layout — never place elements at absolute canvas coordinates with manual camera math
 - Use `useSceneGSAP` for at least one choreographed sequence
 - Define custom EP_COLORS and EP_SPRINGS in constants.ts
 - Core visual must NOT use CE — use morph(), GSAP timeline, SVG morph, or canvas

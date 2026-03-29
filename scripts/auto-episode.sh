@@ -646,14 +646,14 @@ Your job is to design the VISUAL CONCEPT that serves the director's story arc. D
 
 Also read:
 - Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
-- CLAUDE.md — especially Animation Toolkit, Camera Component, Episode Registry, and "Making Episodes That Don't Look Alike"
+- CLAUDE.md — especially Animation Toolkit, Stage/Act System, Episode Registry, and "Making Episodes That Don't Look Alike"
 - DO NOT read old episode VideoTemplate.tsx files — they use outdated patterns
 
 RULES:
 - Do NOT repeat any visual approach from the Episode Registry in CLAUDE.md
 - Do NOT default to DiagramBox, FlowRow, or other shared library components for the core visual
 - The core visual MUST NOT use CE (CanvasElement). Use GSAP timeline, SVG path morphing, CSS keyframes, Canvas 2D, or morph()
-- Use the Camera component for at least one zoom/pan transition
+- Use the Stage/Act system for layout — each act gets its own Act component, Stage auto-pans between them
 - Define episode-specific EP_COLORS and EP_SPRINGS in constants.ts
 - The director already decided the teaching approach — your job is the visual execution
 
@@ -723,15 +723,15 @@ Mark scenes using the SIGNATURE VISUAL with [SIGNATURE].
 
 Use AS MANY SCENES as the topic needs. 15-25 scenes is typical.
 
-CRITICAL — CANVAS ZONE PLAN:
-After the scene list, include a "Canvas Layout" section. Read the "Canvas Positioning Math" section in CLAUDE.md. You MUST:
-1. Define the canvas size (e.g., 300vw × 200vh)
-2. Divide into zones (e.g., Zone A: 0-90vw for Act 1, Zone B: 100-190vw for Act 2)
-3. For each custom component, specify its canvas position (left, top) and which zone it belongs to
-4. For each scene, specify the camera shot (x, y, scale) that frames the active content
-5. VERIFY using the formula: screen_pos = canvas_pos × scale + camera_offset. Every component must be within 0-100vw / 0-100vh at its active scenes.
+CRITICAL — ACT STRUCTURE:
+After the scene list, include an "Act Layout" section. Read the "Stage/Act System" section in CLAUDE.md. You MUST:
+1. Group scenes into Acts — each Act is a full-screen (100vw × 100vh) section
+2. Assign each scene to exactly one Act's \`scenes\` array
+3. For scenes that need within-Act zoom, specify the \`shots\` (scale, x%, y%)
+4. Note any overview scenes where all Acts should be visible simultaneously
+5. Content inside each Act uses normal layout (flex, grid, absolute within 100vw × 100vh) — NO manual canvas coordinates
 
-This prevents the #1 visual bug: content placed off-screen because camera math wasn't calculated.
+This prevents the #1 visual bug: content placed off-screen. Stage/Act makes it structurally impossible.
 
 Save the storyboard to .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
 PROMPT_END
@@ -845,7 +845,7 @@ SCENE <N>: <name> (duration: <X>s)
 RULES:
 1. Every element gets a timestamp. No "then" or "after that" — use exact times.
 2. Specify the animation TECHNIQUE for each move: morph(), GSAP tl.from/tl.to, CE enter/exit, CSS @keyframes, spring config.
-3. Camera moves get their own timestamps: "Camera — pan to Zone B (-80vw, 0, 1.2), spring stiffness 60"
+3. Act transitions get their own timestamps: "Stage — auto-pan to Act 2 (spring stiffness 60)"
 4. Mark the HIGHLIGHT SCENE's dramatic moment with ★ — this is where timing matters most.
 5. Include hold/breathing time at the end of each scene (1-2s minimum).
 6. For voiceover-synced episodes, mark where specific phrases align with visuals.
@@ -859,7 +859,7 @@ RULES:
 ALSO INCLUDE:
 - ## Persistent Elements (which elements stay mounted across multiple scenes and transform via morph)
 - ## Animation Library Assignments (which scenes use GSAP timeline, which use morph, which use CSS @keyframes)
-- ## Camera Shot List (scene → camera position, with the math: target element → camera offset)
+- ## Act Shots (which Acts have within-Act zoom shots, with scale/x%/y% values)
 - ## Character Choreography (if characters are used: which scenes have dialogue, character positions, emotion arcs across the episode)
 
 Save to .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md
@@ -880,49 +880,61 @@ if phase_done "wireframe"; then
 else
 
 run_phase "wireframe" "$(cat <<PROMPT_END
-You are building a WIREFRAME VERSION of episode ${EP_NUM}: ${TOPIC} — a skeleton layout that verifies all positioning and camera math BEFORE the real visuals are built.
+You are building a WIREFRAME VERSION of episode ${EP_NUM}: ${TOPIC} — a skeleton layout that verifies the Act structure BEFORE the real visuals are built.
 
 Read these for context:
 - Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
 - Motion script: .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md
-- CLAUDE.md — especially "Canvas Positioning Math" and "Camera Component"
+- CLAUDE.md — especially "Stage/Act System"
 
-YOUR JOB: Create a minimal VideoTemplate.tsx that has:
-1. Colored rectangles (with labels) at the exact canvas positions where custom components will go
-2. Camera shots wired up with correct x/y/scale values
-3. sceneRange guards for each zone
+YOUR JOB: Create a minimal VideoTemplate.tsx using Stage/Act that has:
+1. Stage wrapping all Acts
+2. One Act per section, with scenes assigned via the \`scenes\` prop
+3. Colored placeholder rectangles inside each Act (each Act is 100vw × 100vh — use normal layout)
 4. SCENE_DURATIONS (use 3000ms per scene — fast iteration)
 5. ECE text placeholders for captions
 
-This is NOT the real episode — it's a positioning test. Each custom component is replaced by a colored <div> with:
-- The component's name as text
-- A border showing its bounds
-- The correct absolute position (left, top) and size (width, height) from the storyboard canvas zones
+This is NOT the real episode — it's a layout test. Each custom component is replaced by a colored <div> inside its Act.
 
-Example wireframe element:
+Example wireframe:
 \`\`\`tsx
-{sceneRange(s, 3, 8) && (
-  <div style={{
-    position: 'absolute', left: '105vw', top: '15vh',
-    width: '80vw', height: '60vh',
-    border: '3px dashed #EB5234', borderRadius: '1vw',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: '#EB5234', fontSize: '2vw', fontFamily: 'var(--font-display)',
-    backgroundColor: 'rgba(235, 82, 52, 0.1)',
-  }}>
-    UTXOHashmap (scenes 3-8)
-  </div>
-)}
+import { Stage, Act } from '@/lib/video';
+
+<Stage scene={s}>
+  <Act scenes={[0, 1, 2]}>
+    <div style={{
+      width: '100%', height: '100%',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      border: '3px dashed #EB5234',
+      color: '#EB5234', fontSize: '2vw', fontFamily: 'var(--font-display)',
+      backgroundColor: 'rgba(235, 82, 52, 0.1)',
+    }}>
+      TitleScreen (scenes 0-2)
+    </div>
+  </Act>
+  <Act scenes={[3, 4, 5]} shots={{ 4: { scale: 1.5, x: 30, y: 50 } }}>
+    <div style={{
+      width: '100%', height: '100%',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      border: '3px dashed #396BEB',
+      color: '#396BEB', fontSize: '2vw', fontFamily: 'var(--font-display)',
+      backgroundColor: 'rgba(57, 107, 235, 0.1)',
+    }}>
+      CoreVisual (scenes 3-5, zoom at scene 4)
+    </div>
+  </Act>
+</Stage>
 \`\`\`
 
 STEPS:
 1. Create ${EP_PATH}/constants.ts with EP_COLORS and EP_SPRINGS from the creative brief
-2. Create ${EP_PATH}/VideoTemplate.tsx as the wireframe
+2. Create ${EP_PATH}/VideoTemplate.tsx as the wireframe using Stage/Act
 3. Register in client/src/App.tsx, client/src/pages/Home.tsx, client/src/episodes/index.ts
-4. Include POSITION AUDIT comment block proving every scene's math
-5. Run npx tsc --noEmit --project client/tsconfig.json
+4. Run npx tsc --noEmit --project client/tsconfig.json
+5. After the wireframe compiles, run: node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa-wireframe
+   Fix any FAIL issues the tool reports before proceeding.
 
-The wireframe must compile and render. Keep it simple — the goal is to verify that camera shots frame the right zones and nothing is off-screen.
+The wireframe must compile and render. Stage/Act eliminates manual positioning math — content fills each Act's viewport naturally.
 PROMPT_END
 )" --new-session --session-file "$BUILD_SESSION"
 fi
@@ -962,25 +974,27 @@ ${WF_SCREENSHOT_NOTE}
 
 Read ${EP_PATH}/VideoTemplate.tsx (the wireframe version).
 
-FOR EACH SCENE, verify:
-1. The primary wireframe box is visible and roughly centered in the viewport
-2. No boxes from other acts are bleeding into view
-3. Camera transitions don't leave empty frames
-4. sceneRange guards match the intended scene ranges
-5. The POSITION AUDIT math is correct
+STEP 1: Run the automated visual QA tool:
+  node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa-wireframe
 
-If screenshots are available, READ EACH ONE and check:
-- Is the labeled rectangle visible and properly framed?
-- Is any content cut off at edges?
-- Are there empty scenes?
+STEP 2: Read the report at .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa-wireframe/report.md
+- FAIL issues = elements off-screen that should be visible → MUST FIX
+- WARN issues = significant clipping → fix if >40% hidden
+- Read the screenshots to visually confirm
 
-FIX any positioning issues you find in the wireframe. After fixes:
-- Update the POSITION AUDIT comment
-- Run npx tsc --noEmit --project client/tsconfig.json
+STEP 3: Fix any issues found:
+- Content overflowing Act → adjust layout within the Act (it's 100vw × 100vh)
+- Wrong Act assignment → move content to the correct Act's scenes array
+- Within-Act zoom clipping → adjust shots scale/x/y percentages
+
+STEP 4: Re-run the visual QA tool to confirm fixes:
+  node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa-wireframe
+
+Repeat until all FAIL issues are resolved. Then run npx tsc --noEmit --project client/tsconfig.json.
 
 Save findings to .auto-episode/ep${EP_NUM}-${SLUG}/wireframe-qa.md
 
-The wireframe layout must be PERFECT before we build real components on top of it.
+The wireframe layout must pass the visual QA tool before we build real components on top of it.
 PROMPT_END
 )" --session-file "$BUILD_SESSION"
 fi
@@ -1020,8 +1034,8 @@ Read these artifacts for full context:
 - Creative brief: .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
 - Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
 
-A wireframe version already exists at ${EP_PATH}/VideoTemplate.tsx with verified camera positions and sceneRanges.
-Use the wireframe's POSITION AUDIT, CAMERA_SHOTS, and sceneRange guards as your foundation — replace placeholder boxes with real components.
+A wireframe version already exists at ${EP_PATH}/VideoTemplate.tsx with verified Stage/Act layout.
+Use the wireframe's Act structure as your foundation — replace placeholder boxes with real components inside each Act.
 
 FOLLOW THE DIRECTOR'S BUILD PRIORITIES. Build the signature visual FIRST, then supporting components.
 
@@ -1036,7 +1050,7 @@ IMPORTANT:
 - Use viewport-relative units (vw, vh) for responsive 1920x1080 capture
 - Do NOT use DiagramBox, FlowRow, or shared library components as the core visual
 - Import CE from @/lib/video ONLY for supporting text/labels, not the core animation
-- Import Camera from @/lib/video for viewport pan/zoom
+- Import { Stage, Act } from @/lib/video for layout (NOT Camera — use Stage/Act for new episodes)
 - If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE.md for the full props API (emotions, gestures, lookAt, speech bubbles).
 
 Create the episode directory and component files:
@@ -1069,27 +1083,24 @@ Read the director's build guidance: .auto-episode/ep${EP_NUM}-${SLUG}/director-s
 Using your custom components, build the complete single-canvas VideoTemplate following CLAUDE.md.
 
 CHECKLIST:
-1. Import useVideoPlayer, DevControls, morph, Camera, createThemedCE, ceThemes from @/lib/video
+1. Import useVideoPlayer, DevControls, morph, Stage, Act, createThemedCE, ceThemes from @/lib/video
 2. If the storyboard has CHARACTER scenes: also import { Character } from '@/lib/video'. Use <Character name="alice" emotion="explaining" gesture="point" lookAt="right" says="Speech text" position={{ x: '25%', y: '85%' }} size="8vw" />. Character props change per scene — use morph() or conditional rendering based on currentScene to update emotion/gesture/says per scene. Keep speech bubble text SHORT (max ~12 words).
 3. Create a themed CE: const ECE = createThemedCE(ceThemes.blurIn) — pick a theme that fits the episode mood (blurIn, clipCircle, glitch, scalePop, wipeRight, flip, rotateIn, etc). NEVER use bare CE with default fade-up.
 4. Import your custom components from the episode folder
 5. Import EP_COLORS, EP_SPRINGS from the episode's constants.ts
 6. Define SCENE_DURATIONS based on storyboard timing
 7. Use morph() as the PRIMARY animation pattern — elements stay mounted and transform between scene states
-8. Use Camera for at least one viewport zoom/pan transition
+8. Use Stage/Act for layout — wrap all content in Stage > Act components. Use Act shots prop for within-Act zoom.
 9. Use CE ONLY for text captions and labels — NOT for the core visual
 10. Use GSAP (gsap.timeline()) for choreographed sequences where morph() isn't enough
 11. Progressive reveal in every scene — staggered delays
 12. Episode-specific spring configs from EP_SPRINGS (NOT springs.snappy)
 13. Background from EP_COLORS (NOT var(--color-bg-light) by default)
 
-POSITIONING (CRITICAL — read "Canvas Positioning Math" in CLAUDE.md):
-- Use the canvas zone plan from the storyboard
-- For EVERY camera shot, compute: screen_pos = canvas_pos × scale + camera_offset
-- Verify BOTH left+right edges AND top+bottom edges of each component are within 0-100vw / 0-100vh
-- Include a POSITION AUDIT comment block at the top of CAMERA_SHOTS proving each scene's math
-- Check flex layout positions manually — nested flex gaps compound and the actual position is often different from naive calc
-- Use sceneRange() guards that match each component's actual scene range — if a component's internal logic shows content at scene 5, the sceneRange must include scene 5
+POSITIONING:
+- Use Stage/Act system — each Act is 100vw × 100vh, content uses normal layout inside
+- Do NOT use Camera, focus(), fitRect(), or absolute canvas coordinates — Stage/Act handles all positioning
+- Do NOT write manual POSITION AUDIT comments — the automated visual QA tool (scripts/visual-qa.mjs) will verify positioning after build
 
 ALSO:
 - Add data-video="ep${EP_NUM}" attribute on the root div (required for recording)
@@ -1120,33 +1131,36 @@ fi
 # PHASE 8: VISUAL QA  [Executor — screenshots + positioning fixes]
 # ═════════════════════════════════════════════════════════════════════════════
 # This phase catches the #1 visual bug class: content off-screen, overlapping,
-# or clipped due to camera math errors. It takes screenshots of every scene
+# or clipped due to layout issues. It takes screenshots of every scene
 # and has an executor verify and fix positioning BEFORE the creative critique.
 
-divider "EXECUTOR" "VISUAL QA — POSITIONING VERIFICATION"
+divider "EXECUTOR" "VISUAL QA — AUTOMATED POSITIONING VERIFICATION"
 
 if phase_done "visual-qa"; then
   log "⏭ visual-qa already done — skipping"
 else
 
-# Count scenes for screenshots
-VQ_SCENE_COUNT=$(cd "$PROJECT_DIR" || exit 1; grep -oE 'scene[0-9]+' "${EP_PATH}/VideoTemplate.tsx" 2>/dev/null | sort -u | wc -l | tr -d ' ')
-[ -z "$VQ_SCENE_COUNT" ] && VQ_SCENE_COUNT=0
+# Run automated visual QA tool (Playwright-based, deterministic)
+VQ_OUTPUT_DIR="$WORK_DIR/visual-qa"
+VQ_REPORT=""
+VQ_EXIT_CODE=0
 
-VQ_SCREENSHOT_DIR="$WORK_DIR/screenshots-visual-qa"
-VQ_SCREENSHOT_NOTE="(Screenshots unavailable — verify from code only)"
-
-if [ "$VQ_SCENE_COUNT" -gt 0 ]; then
-  log "Capturing screenshots for visual QA (${VQ_SCENE_COUNT} scenes)..."
-  mkdir -p "$VQ_SCREENSHOT_DIR"
-
-  if cd "$PROJECT_DIR" && node scripts/screenshot-scenes.mjs "ep${EP_NUM}" "$VQ_SCENE_COUNT" "$VQ_SCREENSHOT_DIR" 2>"$WORK_DIR/screenshot-vq-err.log"; then
-    VQ_SCREENSHOT_COUNT=$(ls "$VQ_SCREENSHOT_DIR"/*.png 2>/dev/null | wc -l | tr -d ' ')
-    log "Captured $VQ_SCREENSHOT_COUNT screenshots for visual QA"
-    VQ_SCREENSHOT_NOTE="Screenshots of each scene are saved at $VQ_SCREENSHOT_DIR/. Read EVERY PNG file to visually verify positioning."
+log "Running automated visual QA (Playwright)..."
+if cd "$PROJECT_DIR" && node scripts/visual-qa.mjs "ep${EP_NUM}" "$VQ_OUTPUT_DIR" 2>"$WORK_DIR/visual-qa-err.log"; then
+  VQ_EXIT_CODE=0
+  log "✓ Visual QA passed — all scenes OK"
+else
+  VQ_EXIT_CODE=$?
+  if [ "$VQ_EXIT_CODE" -eq 1 ]; then
+    log "⚠ Visual QA found positioning issues — will fix"
   else
-    log "Screenshot capture failed (non-fatal) — will verify from code"
+    log "Visual QA script error (non-fatal) — will fall back to screenshot review"
   fi
+fi
+
+# Read the report if it exists
+if [ -f "$VQ_OUTPUT_DIR/report.md" ]; then
+  VQ_REPORT=$(cat "$VQ_OUTPUT_DIR/report.md")
 fi
 
 # Also grab any TS errors to fix
@@ -1155,67 +1169,56 @@ if [ -f "$WORK_DIR/typecheck.log" ] && [ -s "$WORK_DIR/typecheck.log" ]; then
   VQ_TS_ERRORS=$(cat "$WORK_DIR/typecheck.log")
 fi
 
+# Only run fix phase if there were issues
+if [ "$VQ_EXIT_CODE" -eq 1 ] || [ -n "$VQ_TS_ERRORS" ]; then
+
 run_phase "visual-qa" "$(cat <<PROMPT_END
-You are a VISUAL QA ENGINEER for an animated Bitcoin explainer episode. Your ONLY job is to verify and fix positioning — making sure every scene shows its content on-screen, properly framed, and not overlapping with content from other acts.
+You are a VISUAL QA ENGINEER for an animated Bitcoin explainer episode. Your job is to fix positioning issues found by the automated visual QA tool.
 
 Episode: ${EP_NUM} (${TOPIC}) at ${EP_PATH}/
 
-${VQ_SCREENSHOT_NOTE}
+## AUTOMATED VISUAL QA REPORT
+The tool opened the episode in Playwright at 1920×1080, stepped through every scene, and used getBoundingClientRect() to check element positions. This is deterministic — the numbers are pixel-accurate.
 
-STEP 1: READ THE CODE
-Read these files:
-- ${EP_PATH}/VideoTemplate.tsx — focus on CAMERA_SHOTS, sceneRange guards, and component positions
-- All custom component files in ${EP_PATH}/ — note their absolute position (left, top) and internal visibility logic
-- Read "Canvas Positioning Math" in CLAUDE.md for the formulas
+${VQ_REPORT}
 
-STEP 2: BUILD A POSITION MAP
-For each custom component, extract:
-- Canvas position (left, top from style)
-- Width/height (from style or estimated from content)
-- Scene visibility (from sceneRange in VideoTemplate + internal scene checks)
+Screenshots of every scene are saved at ${VQ_OUTPUT_DIR}/ — read them to see the actual rendering.
 
-For each camera shot, extract:
-- x, y, scale values
-- Which scenes use this shot (highest key ≤ current scene)
+## YOUR JOB: FIX THE FAILURES
 
-STEP 3: VERIFY EVERY SCENE
-For EACH scene (0 through N), compute:
-  screen_x = canvas_x × scale + camera_x
-  screen_y = canvas_y × scale + camera_y
+For each FAIL issue in the report:
 
-Check:
-- [ ] Primary component for this scene is fully visible (all edges within 0-100vw, 0-100vh)
-- [ ] No components from OTHER acts are visible (sceneRange guards are correct)
-- [ ] Text captions (ECE) don't overlap with each other or with Camera content
-- [ ] Zoomed views (scale > 1) don't clip important content off-screen
-- [ ] Pull-back views (scale < 1) don't show content from adjacent zones
+1. **Read the screenshot** for that scene to see what's actually on screen
+2. **Identify the root cause**:
+   - Is content overflowing the Act? → adjust layout within the Act (100vw × 100vh)
+   - Is the within-Act zoom (shots) clipping content? → adjust scale/x/y percentages
+   - Is the scene assigned to the wrong Act? → move it to the correct Act's scenes array
+   - Is it internal component positioning? (content offset within the component) → adjust the component
+3. **Fix the code**
+4. **Do NOT write a POSITION AUDIT comment** — the automated tool replaces manual math audits
 
-STEP 4: IF SCREENSHOTS ARE AVAILABLE, VERIFY VISUALLY
-Read each screenshot PNG and check:
-- Is the primary visual element centered/visible?
-- Is any content cut off at edges?
-- Are there elements from other acts bleeding through?
-- Is text overlapping with other text?
-- Is the scene empty when it shouldn't be?
+For WARN issues (clipping):
+- If >40% is clipped, fix it
+- Minor edge clipping (<20%) is acceptable
 
-STEP 5: FIX ALL ISSUES
-For each issue found:
-1. Determine if it's a camera shot problem (wrong x/y/scale) or a component position problem (wrong left/top)
-2. Compute the correct value using the formula
-3. Edit the code to fix it
-4. Update or add the POSITION AUDIT comment block in VideoTemplate.tsx
+Ignore INFO items (elements from other Acts during Stage transitions).
 
-STEP 6: ADD/UPDATE POSITION AUDIT
-If VideoTemplate.tsx doesn't have a POSITION AUDIT comment block, add one above CAMERA_SHOTS.
-List every scene with its camera values and the screen position of the primary component.
+IMPORTANT: Do NOT compute positioning math manually. Fix by adjusting values, then re-run the visual QA tool to verify:
+  node scripts/visual-qa.mjs ep${EP_NUM} ${VQ_OUTPUT_DIR}
 
 ${VQ_TS_ERRORS:+ALSO FIX THESE TYPE ERRORS: ${VQ_TS_ERRORS}}
 
 After all fixes, run: npx tsc --noEmit to verify compilation.
 
-Write a summary of all issues found and fixes applied to .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa.md
+Write a summary to .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa.md
 PROMPT_END
 )" --session-file "$BUILD_SESSION"
+
+else
+  log "✓ No positioning issues to fix"
+  mark_done "visual-qa"
+fi
+
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1296,7 +1299,7 @@ YOUR FOCUS — score each 1-10:
 
 1. VISUAL ORIGINALITY — looks different from all episodes in the Episode Registry? Custom signature visual? Or is it another CE fade-in episode?
 2. ANIMATION VARIETY — does the core visual use GSAP, SVG morph, Canvas, CSS keyframes? CE should only be for text/labels. Score 1 if everything uses CE.
-3. CAMERA MOVEMENT — does the episode use Camera or viewport transforms? Static rectangle = low score.
+3. VIEWPORT MOVEMENT — does the episode use Stage/Act with multiple Acts? Within-Act zoom shots? Overview mode? Static single-Act = low score.
 4. CUSTOM PALETTE — EP_COLORS and EP_SPRINGS in constants.ts? Background NOT default beige?
 5. VISUAL POLISH — if screenshots available, READ THEM: layout balance, spacing, color harmony, text readability, professional quality. Would this stand up next to 3Blue1Brown?
 BONUS: If characters (Alice/Bob) are used — do they have varied emotions across scenes? Are gestures used meaningfully (not all 'none')? Do they look at each other during dialogue? Are speech bubbles readable and short? Do characters add personality or feel like decoration?
@@ -1323,13 +1326,12 @@ YOUR FOCUS — score each 1-10:
 
 1. TECHNICAL ACCURACY — are Bitcoin/crypto concepts explained correctly? Real values used? Any factual errors?
 2. CODE QUALITY — compiles? (TS errors: ${TYPECHECK_ERRORS:-none}) Clean structure? No dead code?
-3. POSITIONING ACCURACY — read "Canvas Positioning Math" in CLAUDE.md. Verify the POSITION AUDIT:
-   - For each camera shot, recompute: screen_pos = canvas_pos × scale + camera_offset
-   - All primary components within 0-100vw / 0-100vh at active scenes?
-   - sceneRange guards match components' internal scene logic?
-   - Any empty scenes?
-   Score 1 if no audit exists. Score 10 if every scene's math checks out.
-   Flag missing/wrong audits as MUST FIX.
+3. POSITIONING ACCURACY — check the visual QA report at .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa/report.md (if it exists).
+   - Are there any FAIL issues (off-screen elements)? Flag as MUST FIX.
+   - Are there WARN issues (clipped elements)? Flag significant ones as SHOULD FIX.
+   - If no report exists, run: node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa
+   - Also check: sceneRange guards match components' internal scene logic? Any empty scenes?
+   Score 1 if report has failures. Score 10 if report shows all scenes pass.
 
 OVERALL TECHNICAL SCORE: X/30
 
@@ -1569,6 +1571,8 @@ RULES:
 - If something is in "Do NOT Touch", leave it alone
 - After all fixes, run: npx tsc --noEmit --project client/tsconfig.json
 - If type errors remain, fix them
+- For any positioning fixes, verify with the automated tool: node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa
+  Do NOT rely on manual arithmetic — use the tool's deterministic output.
 
 The planner's plan is your spec. Execute it precisely.
 PROMPT_END
