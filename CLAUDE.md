@@ -593,17 +593,101 @@ Planner (can't edit code) reviews and steers. Executor (can edit code) builds. H
 3. **Analogy-First** — only when analogy fits naturally
 4. **Definition-Deep-Dive** — define, then layer complexity scene by scene
 5. **Wrong > Less Wrong > Right** — start wrong, refine toward correct
-6. **Dialogue-Driven** — characters ask and answer
+6. **Dialogue-Driven** — Alice & Bob stick figures discuss the topic conversationally. Alice explains, Bob asks questions. Use the `Character` component from `@/lib/video`. Best for topics where a Q&A format naturally builds understanding. Mix dialogue scenes with pure visual scenes — don't make the entire episode just two characters talking.
 
 ### Emotional Arc
 Curiosity > Confusion > Partial clarity > **Aha moment** > Satisfaction. The aha lands in a Highlight Scene — visually break the pattern (different background, larger text, dramatic animation). Mark with `{/* HIGHLIGHT SCENE */}`.
 
-## Characters
-- Alice, Bob, Carol (Eve/Mallory for attackers) — hedgehog characters
-- Give roles: "Bob (Victim)", "Carol (Attacker)"
-- Characters have personality and reactions — animate expressions when possible
-- Images in `client/public/` (alice.png, bob.png, etc.)
-- See `references/brand-guidelines.md` for outfit colors
+## Characters — Stick Figure System (`@/lib/video/characters`)
+
+Expressive animated stick figure characters for dialogue-driven teaching. Import from `@/lib/video`:
+
+```tsx
+import { Character } from '@/lib/video';
+import type { CharacterProps, Emotion, Gesture, LookDirection } from '@/lib/video';
+```
+
+### Available Characters
+| Name | Color | Default Facing | Role |
+|------|-------|---------------|------|
+| `alice` | `#396BEB` (blue) | right | Explainer, teacher |
+| `bob` | `#EB5234` (orange) | left | Questioner, learner |
+
+### Props (`CharacterProps`)
+```tsx
+<Character
+  name="alice"              // 'alice' | 'bob'
+  emotion="explaining"      // see Emotions below
+  lookAt="right"           // 'center' | 'left' | 'right' | 'up' | 'down'
+  gesture="point"          // 'none' | 'wave' | 'point' | 'shrug' | 'present'
+  says="This is the hash"  // speech bubble text (omit = no bubble)
+  facing="right"           // override default facing: 'left' | 'right'
+  position={{ x: '25%', y: '85%' }}  // absolute positioning
+  size="10vw"              // character size (default '10vw')
+/>
+```
+
+### Emotions (11 total)
+| Emotion | Face | Best for |
+|---------|------|----------|
+| `neutral` | Relaxed smile, normal eyes | Default state, listening |
+| `happy` | Squinted eyes, big smile, blush | Agreement, success |
+| `excited` | Wide eyes, open mouth, blush | Discovery, breakthrough |
+| `curious` | One brow raised, head tilted | Asking questions |
+| `confused` | Both brows furrowed, wavy mouth | Not understanding |
+| `thinking` | Eyes looking up-left, tilted head | Processing, considering |
+| `surprised` | Very wide eyes, open mouth | Unexpected reveal |
+| `worried` | Raised inner brows, frown | Concern about a bug/attack |
+| `annoyed` | Lowered brows, flat mouth | Frustration, skepticism |
+| `explaining` | Engaged eyes, open smile, slight lean | Teaching a concept |
+| `laughing` | Squinted eyes, wide open mouth, blush | Humor, relief |
+
+### Gestures (5 total)
+- `none` — arms relaxed at sides (with natural curve)
+- `wave` — right arm raised in greeting
+- `point` — right arm extended pointing outward
+- `shrug` — both arms raised outward ("I dunno")
+- `present` — right arm raised presenting something
+
+### Dialogue Scene Pattern
+Characters work best in dialogue pairs — Alice explains, Bob asks:
+
+```tsx
+{/* Alice explains on the left */}
+<Character
+  name="alice"
+  emotion="explaining"
+  gesture="present"
+  lookAt="right"
+  says="Each block has a hash..."
+  position={{ x: '25%', y: '85%' }}
+  size="8vw"
+/>
+
+{/* Bob reacts on the right */}
+<Character
+  name="bob"
+  emotion="curious"
+  lookAt="left"
+  says="But what if two match?"
+  position={{ x: '75%', y: '85%' }}
+  size="8vw"
+/>
+```
+
+### When to Use Characters
+- **Dialogue-Driven teaching** — Alice and Bob discuss the topic conversationally
+- **Reaction shots** — character reacts to a visual (surprised at a collision, worried about an attack)
+- **Intro/outro** — characters wave hello or present the topic
+- **NOT every episode needs characters** — use them when the topic benefits from a conversational explanation, not as decoration
+
+### Storyboard Character Notation
+When storyboarding scenes with characters, use this format:
+```
+CHARACTERS:
+  alice: emotion=explaining, gesture=present, lookAt=right, says="Short speech"
+  bob: emotion=curious, lookAt=left, says="Question?"
+```
 
 ## Content Checklist
 - Pick a topic people have heard of but don't really understand

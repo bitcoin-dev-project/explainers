@@ -36,8 +36,12 @@ export {
 export { CE, morph, sceneRange, createThemedCE, ceThemes } from './canvas';
 export type { CETheme } from './canvas';
 
-// Camera — viewport pan/zoom
-export { Camera } from './camera';
+// Camera — viewport pan/zoom + shot helpers
+export { Camera, focus, fitRect } from './camera';
+export type { CameraShot } from './camera';
+
+// Audio sync — voiceover playback + timing helpers
+export { useAudioSync, syncTo, durationsFromAudio } from './audio-sync';
 
 // GSAP utilities — imperative timeline animations
 export { useGSAP, useTimeline, useSceneGSAP, gsapPresets } from './gsap-utils';

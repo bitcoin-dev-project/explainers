@@ -584,6 +584,7 @@ Think about:
 5. What NOT to include — what's interesting but would distract from the core story?
 6. What real-world values/examples should we use? (actual hashes, addresses, tx data)
 7. Per the Episode Registry — what must THIS episode do differently? What animation library should drive the core visual? (GSAP? SVG morph? Canvas 2D?)
+8. Should this episode use CHARACTERS (Alice & Bob stick figures)? Characters work best for dialogue-driven teaching — Alice explains, Bob asks questions. They add personality and make abstract topics feel like a conversation. Not every episode needs them. Decide YES or NO and explain why.
 
 Save your creative direction to .auto-episode/ep${EP_NUM}-${SLUG}/director-research.md
 
@@ -605,6 +606,9 @@ Format:
 
 ## Visual Differentiation
 [what existing episodes have done + what THIS episode MUST do differently]
+
+## Characters
+[YES or NO — should Alice & Bob stick figures appear? If YES: what roles do they play? (e.g., Alice=teacher, Bob=confused learner). Which scenes are dialogue-driven vs pure visual? Characters add personality but shouldn't be forced into every episode.]
 
 ## Key Real Values to Use
 [specific numbers, hashes, addresses, tx data to make it concrete]
@@ -659,6 +663,7 @@ b) COLOR PALETTE — 2-3 accent colors beyond brand orange that match the mood
 c) LAYOUT PATTERN — NOT centered-stack-with-heading — what serves THIS content?
 d) ANIMATION PERSONALITY — spring configs, timing, motion style that matches the topic
 e) CUSTOM COMPONENTS NEEDED — what must be built from scratch for this episode
+f) CHARACTER PLAN — if the director said YES to characters: How are Alice & Bob used? Which scenes have dialogue? What's their positioning (e.g., Alice left 25%, Bob right 75%)? What emotions/gestures drive the key moments? If NO characters: skip this. Read the "Characters" section in CLAUDE.md for the full API (emotions, gestures, lookAt, speech bubbles).
 
 Also brainstorm 2 alternative concepts (brief, 1 paragraph each) so the director could course-correct if needed. But commit to your best one.
 
@@ -705,7 +710,13 @@ For EACH scene, write:
 3. ON-SCREEN TEXT (the short caption — remember, max ~15 words)
 4. VISUAL DESCRIPTION (what the viewer sees — the animation that teaches)
 5. ANIMATION DETAILS (what enters, exits, morphs, specific delays)
-6. WHY THIS SCENE (what concept does it teach? how does it connect to the next?)
+6. CHARACTERS (if this scene uses Alice/Bob — otherwise omit):
+   alice: emotion=<emotion>, gesture=<gesture>, lookAt=<dir>, says="<speech>"
+   bob: emotion=<emotion>, gesture=<gesture>, lookAt=<dir>, says="<speech>"
+   Available emotions: neutral, happy, excited, curious, confused, thinking, surprised, worried, annoyed, explaining, laughing
+   Available gestures: none, wave, point, shrug, present
+   Available lookAt: center, left, right, up, down
+7. WHY THIS SCENE (what concept does it teach? how does it connect to the next?)
 
 Mark the HIGHLIGHT SCENE (aha moment) with [HIGHLIGHT].
 Mark scenes using the SIGNATURE VISUAL with [SIGNATURE].
@@ -756,6 +767,7 @@ CHECK:
 8. Is the signature visual actually custom and original vs. existing episodes?
 9. Does the opening start from familiar ground (not jargon)?
 10. Are real values used (not "the hash of X" but actual hex values)?
+11. If characters are used: Do Alice & Bob have distinct roles (not both saying the same things)? Are emotions varied and appropriate per scene (not all "neutral")? Do speech bubbles stay short (max ~12 words)? Do characters look at each other when in dialogue? Are there non-dialogue scenes too (characters shouldn't dominate the ENTIRE episode)?
 
 Write your build guidance to .auto-episode/ep${EP_NUM}-${SLUG}/director-storyboard.md
 
@@ -838,11 +850,17 @@ RULES:
 5. Include hold/breathing time at the end of each scene (1-2s minimum).
 6. For voiceover-synced episodes, mark where specific phrases align with visuals.
 7. Note which elements PERSIST across scenes (use morph) vs which enter/exit (use CE/GSAP).
+8. For CHARACTER scenes: timestamp each character state change. Characters use Framer Motion springs internally — specify emotion/gesture/lookAt/says changes at exact times. Example:
+   0.0s  alice — emotion=explaining, gesture=present, lookAt=right, says="Each block links to the previous one"
+   0.0s  bob — emotion=curious, lookAt=left (no speech — listening)
+   3.5s  bob — emotion=surprised, says="Wait, what if someone changes a block?"
+   3.5s  alice — emotion=neutral, gesture=none (listening now)
 
 ALSO INCLUDE:
 - ## Persistent Elements (which elements stay mounted across multiple scenes and transform via morph)
 - ## Animation Library Assignments (which scenes use GSAP timeline, which use morph, which use CSS @keyframes)
 - ## Camera Shot List (scene → camera position, with the math: target element → camera offset)
+- ## Character Choreography (if characters are used: which scenes have dialogue, character positions, emotion arcs across the episode)
 
 Save to .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md
 
@@ -1008,7 +1026,7 @@ Use the wireframe's POSITION AUDIT, CAMERA_SHOTS, and sceneRange guards as your 
 FOLLOW THE DIRECTOR'S BUILD PRIORITIES. Build the signature visual FIRST, then supporting components.
 
 IMPORTANT:
-- Read CLAUDE.md first — especially the Animation Toolkit section
+- Read CLAUDE.md first — especially the Animation Toolkit section and the Characters section
 - Build components FIRST, before VideoTemplate.tsx
 - Use the MOTION SCRIPT for exact timing — every element has a timestamp, follow it
 - Each component should be self-contained and animated
@@ -1019,6 +1037,7 @@ IMPORTANT:
 - Do NOT use DiagramBox, FlowRow, or shared library components as the core visual
 - Import CE from @/lib/video ONLY for supporting text/labels, not the core animation
 - Import Camera from @/lib/video for viewport pan/zoom
+- If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE.md for the full props API (emotions, gestures, lookAt, speech bubbles).
 
 Create the episode directory and component files:
 - mkdir -p ${EP_PATH}/
@@ -1051,17 +1070,18 @@ Using your custom components, build the complete single-canvas VideoTemplate fol
 
 CHECKLIST:
 1. Import useVideoPlayer, DevControls, morph, Camera, createThemedCE, ceThemes from @/lib/video
-2. Create a themed CE: const ECE = createThemedCE(ceThemes.blurIn) — pick a theme that fits the episode mood (blurIn, clipCircle, glitch, scalePop, wipeRight, flip, rotateIn, etc). NEVER use bare CE with default fade-up.
-3. Import your custom components from the episode folder
-4. Import EP_COLORS, EP_SPRINGS from the episode's constants.ts
-5. Define SCENE_DURATIONS based on storyboard timing
-6. Use morph() as the PRIMARY animation pattern — elements stay mounted and transform between scene states
-7. Use Camera for at least one viewport zoom/pan transition
-8. Use CE ONLY for text captions and labels — NOT for the core visual
-9. Use GSAP (gsap.timeline()) for choreographed sequences where morph() isn't enough
-10. Progressive reveal in every scene — staggered delays
-11. Episode-specific spring configs from EP_SPRINGS (NOT springs.snappy)
-12. Background from EP_COLORS (NOT var(--color-bg-light) by default)
+2. If the storyboard has CHARACTER scenes: also import { Character } from '@/lib/video'. Use <Character name="alice" emotion="explaining" gesture="point" lookAt="right" says="Speech text" position={{ x: '25%', y: '85%' }} size="8vw" />. Character props change per scene — use morph() or conditional rendering based on currentScene to update emotion/gesture/says per scene. Keep speech bubble text SHORT (max ~12 words).
+3. Create a themed CE: const ECE = createThemedCE(ceThemes.blurIn) — pick a theme that fits the episode mood (blurIn, clipCircle, glitch, scalePop, wipeRight, flip, rotateIn, etc). NEVER use bare CE with default fade-up.
+4. Import your custom components from the episode folder
+5. Import EP_COLORS, EP_SPRINGS from the episode's constants.ts
+6. Define SCENE_DURATIONS based on storyboard timing
+7. Use morph() as the PRIMARY animation pattern — elements stay mounted and transform between scene states
+8. Use Camera for at least one viewport zoom/pan transition
+9. Use CE ONLY for text captions and labels — NOT for the core visual
+10. Use GSAP (gsap.timeline()) for choreographed sequences where morph() isn't enough
+11. Progressive reveal in every scene — staggered delays
+12. Episode-specific spring configs from EP_SPRINGS (NOT springs.snappy)
+13. Background from EP_COLORS (NOT var(--color-bg-light) by default)
 
 POSITIONING (CRITICAL — read "Canvas Positioning Math" in CLAUDE.md):
 - Use the canvas zone plan from the storyboard
@@ -1279,6 +1299,7 @@ YOUR FOCUS — score each 1-10:
 3. CAMERA MOVEMENT — does the episode use Camera or viewport transforms? Static rectangle = low score.
 4. CUSTOM PALETTE — EP_COLORS and EP_SPRINGS in constants.ts? Background NOT default beige?
 5. VISUAL POLISH — if screenshots available, READ THEM: layout balance, spacing, color harmony, text readability, professional quality. Would this stand up next to 3Blue1Brown?
+BONUS: If characters (Alice/Bob) are used — do they have varied emotions across scenes? Are gestures used meaningfully (not all 'none')? Do they look at each other during dialogue? Are speech bubbles readable and short? Do characters add personality or feel like decoration?
 
 OVERALL VISUAL SCORE: X/50
 
@@ -1339,6 +1360,7 @@ Walk through the episode scene by scene and narrate your experience as a viewer:
 - Scene 2: "OK so this is about... I'm curious because..."
 - (etc.)
 - Flag any scene where you'd lose interest, get confused, or feel talked down to.
+- If characters appear: Do Alice & Bob feel like they're having a real conversation, or is it forced? Does the dialogue help you understand, or does it slow things down? Are their emotions appropriate for the moment?
 
 OVERALL AUDIENCE SCORE: X/20 (weighted: hook 4pts, teaching 4pts, text 4pts, arc 4pts, so-what 4pts)
 
