@@ -1,13 +1,6 @@
-# Bitcoin Error Explainer
+# ExplainLab
 
-Animated Bitcoin educational videos generated end-to-end by an autonomous multi-agent pipeline. One command, one topic — out comes a fully animated explainer episode with custom visuals, camera choreography, and voiceover.
-
-```
-./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees
-```
-
-https://github.com/user-attachments/assets/placeholder
-
+AI animation studio pipeline that turns a topic into a fully produced explainer video through multi-agent orchestration.
 ---
 
 ## How the Pipeline Works
