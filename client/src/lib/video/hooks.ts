@@ -1,6 +1,6 @@
 // Video player hook - handles recording lifecycle, scene advancement, and looping
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 declare global {
   interface Window {
@@ -70,6 +70,13 @@ export interface UseVideoPlayerReturn {
   next: () => void;
   prev: () => void;
   goToScene: (index: number) => void;
+  // Timeline controls
+  durationsArray: number[];
+  totalDuration: number;
+  getCurrentTime: () => number;
+  seekTo: (ms: number) => void;
+  speed: number;
+  setSpeed: (speed: number) => void;
 }
 
 export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerReturn {
@@ -79,14 +86,27 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
   const sceneKeys = useRef(Object.keys(durations)).current;
   const totalScenes = sceneKeys.length;
   const durationsArray = useRef(Object.values(durations)).current;
+  const totalDuration = durationsArray.reduce((a, b) => a + b, 0);
 
   const [currentScene, setCurrentScene] = useState(0);
   const [hasEnded, setHasEnded] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const remainingRef = useRef(0);
-  const sceneStartRef = useRef(0);
+  const [speed, setSpeed] = useState(1);
+  const [seekCount, setSeekCount] = useState(0);
+
+  const remainingRef = useRef(0);        // Video-time ms remaining in current scene
+  const sceneStartRef = useRef(0);       // Real-time timestamp when current timer started
+  const scheduledRef = useRef(0);        // Video-time duration scheduled for current timer
+  const seekTargetRef = useRef<number | null>(null); // Pending seek remaining (video-time)
 
   const togglePause = () => setIsPaused(p => !p);
+
+  // Helper: sum durations of scenes before index
+  const sumBefore = (scene: number) => {
+    let sum = 0;
+    for (let i = 0; i < scene; i++) sum += durationsArray[i];
+    return sum;
+  };
 
   // Setup local recording fallback and start on mount
   useEffect(() => {
@@ -94,15 +114,23 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
     window.startRecording?.();
   }, []);
 
-  // Scene advancement (pause-aware)
+  // Scene advancement (pause-aware, speed-aware)
   useEffect(() => {
     if (hasEnded && !loop) return;
     if (isPaused) return;
 
-    const duration = remainingRef.current > 0
-      ? remainingRef.current
-      : durationsArray[currentScene];
+    // Determine video-time duration for this scene segment
+    let dur: number;
+    if (seekTargetRef.current !== null) {
+      dur = seekTargetRef.current;
+      seekTargetRef.current = null;
+    } else if (remainingRef.current > 0) {
+      dur = remainingRef.current;
+    } else {
+      dur = durationsArray[currentScene];
+    }
 
+    scheduledRef.current = dur;
     sceneStartRef.current = Date.now();
     remainingRef.current = 0;
 
@@ -121,21 +149,67 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
           setCurrentScene(0);
         }
       }
-    }, duration);
+    }, dur / speed);
 
     return () => {
       clearTimeout(timer);
-      // Save remaining time when pausing
-      if (isPaused) return;
-      const elapsed = Date.now() - sceneStartRef.current;
-      const scheduled = remainingRef.current > 0 ? remainingRef.current : durationsArray[currentScene];
-      remainingRef.current = Math.max(0, scheduled - elapsed);
+      // Save remaining video-time for pause/resume
+      const realElapsed = Date.now() - sceneStartRef.current;
+      const videoElapsed = realElapsed * speed;
+      remainingRef.current = Math.max(0, scheduledRef.current - videoElapsed);
     };
-  }, [currentScene, totalScenes, durationsArray, hasEnded, loop, onVideoEnd, isPaused]);
+  }, [currentScene, totalScenes, durationsArray, hasEnded, loop, onVideoEnd, isPaused, speed, seekCount]);
+
+  // getCurrentTime — returns absolute video-time position in ms
+  // Uses a ref so the returned function reference is stable
+  const getCurrentTimeRef = useRef<() => number>(() => 0);
+  getCurrentTimeRef.current = () => {
+    const before = sumBefore(currentScene);
+
+    if (isPaused) {
+      // Pending seek while paused
+      if (seekTargetRef.current !== null) {
+        return before + durationsArray[currentScene] - seekTargetRef.current;
+      }
+      // Paused mid-scene (remaining was saved by cleanup)
+      if (remainingRef.current > 0) {
+        return before + durationsArray[currentScene] - remainingRef.current;
+      }
+      // At start of scene (e.g. after goToScene while paused)
+      return before;
+    }
+
+    // Playing: compute from timer start
+    const sceneOffset = durationsArray[currentScene] - scheduledRef.current;
+    const realElapsed = Date.now() - sceneStartRef.current;
+    const videoElapsed = realElapsed * speed;
+    return Math.min(before + sceneOffset + videoElapsed, before + durationsArray[currentScene]);
+  };
+  const getCurrentTime = useCallback(() => getCurrentTimeRef.current(), []);
+
+  // seekTo — jump to an absolute video-time position in ms
+  const seekTo = useCallback((ms: number) => {
+    const clamped = Math.max(0, Math.min(ms, totalDuration - 1));
+    let acc = 0;
+    for (let i = 0; i < totalScenes; i++) {
+      if (acc + durationsArray[i] > clamped) {
+        seekTargetRef.current = acc + durationsArray[i] - clamped;
+        setCurrentScene(i);
+        setSeekCount(c => c + 1);
+        return;
+      }
+      acc += durationsArray[i];
+    }
+    // At the very end
+    seekTargetRef.current = 1;
+    setCurrentScene(totalScenes - 1);
+    setSeekCount(c => c + 1);
+  }, [totalDuration, totalScenes, durationsArray]);
 
   const next = () => {
     if (currentScene < totalScenes - 1) {
       remainingRef.current = 0;
+      seekTargetRef.current = null;
       setCurrentScene(prev => prev + 1);
     }
   };
@@ -143,6 +217,7 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
   const prev = () => {
     if (currentScene > 0) {
       remainingRef.current = 0;
+      seekTargetRef.current = null;
       setCurrentScene(prev => prev - 1);
     }
   };
@@ -150,6 +225,7 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
   const goToScene = (index: number) => {
     if (index >= 0 && index < totalScenes) {
       remainingRef.current = 0;
+      seekTargetRef.current = null;
       setCurrentScene(index);
     }
   };
@@ -164,6 +240,12 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
     next,
     prev,
     goToScene,
+    durationsArray,
+    totalDuration,
+    getCurrentTime,
+    seekTo,
+    speed,
+    setSpeed,
   };
 }
 
