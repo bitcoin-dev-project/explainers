@@ -1,0 +1,117 @@
+EPISODE 6 — BITCOIN'S IDENTITY CRISIS: THE DUPLICATE TRANSACTION BUG
+Voice-over transcript for ElevenLabs
+(Each slide is marked with its scene number. Timing will be adjusted later to match animations.)
+
+---
+
+SLIDE 1 — Title (scene 0, ~5s)
+
+Bitcoin's identity crisis — a duplicate transaction bug that took fifteen years to truly fix.
+
+---
+
+SLIDE 2 — Every tx has unique ID (scene 1, ~7s)
+
+Every Bitcoin transaction gets a fingerprint — a unique I.D. called the txid. It's how the network tells one transaction apart from every other.
+
+---
+
+SLIDE 3 — txid = hash of bytes (scene 2, ~8s)
+
+The txid is just a hash of the transaction's raw bytes. Take the data, feed it through sha two fifty six twice, and out comes the fingerprint. Change even one byte — you get a completely different I.D.
+
+---
+
+SLIDE 4 — What if same bytes? (scene 3, ~9s)
+
+But here's the thing. If two transactions have the exact same bytes, they produce the exact same hash. For regular transactions, this can't happen — each one references unique inputs, so the bytes are always different. But there's one exception.
+
+---
+
+SLIDE 5 — Meet the coinbase tx (scene 4, ~8s)
+
+The coinbase transaction. It's the first transaction in every block — the one that creates new coins. And it's special: there are no inputs to reference. The miner builds the entire thing from scratch. Coins from nothing.
+
+---
+
+SLIDE 6 — Miner controls every byte (scene 5, ~9s)
+
+The miner controls every single field. The script sig? Anything they want. The output address? Their choice. And notice that n-lock-time field at the bottom — it's always zero. Nobody ever used it. Remember that.
+
+---
+
+SLIDE 7 — The Doppelgänger appears (scene 6, ~8s)
+
+So what happens if the same miner builds the exact same coinbase in two different blocks? Same script sig. Same output. Same everything. Two transactions with identical bytes.
+
+---
+
+SLIDE 8 — Same bytes/hash/txid (scene 7, ~7s)
+
+Identical bytes. Identical hash. Identical txid. Two different transactions in two different blocks — but the system thinks they're the same thing.
+
+---
+
+SLIDE 9 — COLLISION (scene 8, ~10s)
+
+And that's where it all breaks down. Bitcoin's UTXO database — the record of who owns what — is keyed by txid. One slot per I.D. When the second coinbase arrives with the same txid, it overwrites the first. The original fifty B.T.C. just... vanishes from the ledger. Gone.
+
+---
+
+SLIDE 10 — This actually happened (scene 9, ~8s)
+
+This isn't theoretical. In November twenty ten, it happened twice. Blocks ninety-one seven twenty-two and ninety-one eight eighty produced identical coinbases. So did blocks ninety-one eight twelve and ninety-one eight forty-two. A hundred bitcoin, permanently erased from the supply.
+
+---
+
+SLIDE 11 — Fix #1: BIP 30 (scene 10, ~8s)
+
+The first fix came in twenty twelve. bip thirty said: before writing to the UTXO database, check if that txid already exists. If it does, reject the block. Simple and correct — but slow. It meant scanning the entire UTXO set on every single block.
+
+---
+
+SLIDE 12 — Fix #2: BIP 34 (scene 11, ~10s)
+
+So in twenty thirteen, bip thirty four took a smarter approach. It required miners to encode the block height at the start of the script sig. Different block, different height, different bytes, different txid. Duplicates become structurally impossible. The expensive bip thirty check? Removed.
+
+---
+
+SLIDE 13 — "Fixed." (scene 12, ~6s)
+
+Problem solved. Or so everyone thought. The duplicate checks were removed from Bitcoin Core in twenty fifteen. The community moved on.
+
+---
+
+SLIDE 14 — The time bomb (scene 13, ~12s)
+
+But in twenty eighteen, someone took a closer look. Block one sixty-four thousand three hundred eighty-four — mined back in January twenty twelve, before bip thirty four even existed. Its script sig bytes accidentally look like a valid bip thirty four height commitment — for block one million nine hundred eighty-three thousand seven hundred two. That block arrives around January twenty forty-six. At that point, a miner could craft an identical coinbase and produce a duplicate txid all over again.
+
+---
+
+SLIDE 15 — Doppelgänger returns (scene 14, ~8s)
+
+The doppelgänger was back. Not today, not next year. But in twenty years. A ticking time bomb hiding in an old block, waiting patiently.
+
+---
+
+SLIDE 16 — Fix #3: BIP 54 (scene 15, ~10s)
+
+bip fifty-four, the real fix. Instead of relying on what miners put in the script sig, it repurposes the n-lock-time field — the one that was always zero, that nobody ever used. Set it to the block height minus one. Every old coinbase has n-lock-time zero. Every new coinbase has n-lock-time equal to its height. They can never be byte-identical again.
+
+---
+
+SLIDE 17 — Mirror breaks [HIGHLIGHT] (scene 16, ~8s)
+
+One field. That's all it took. A field that sat dormant in every coinbase transaction for fifteen years. Doing absolutely nothing. The answer was hiding in plain sight the whole time.
+
+---
+
+SLIDE 18 — 15-year timeline (scene 17, ~8s)
+
+Twenty ten: the bug. Twenty twelve: the band-aid. Twenty thirteen: the permanent fix. Twenty fifteen: checks removed. Twenty eighteen: the edge case. Twenty twenty-five: the real fix. One bug, three attempts, fifteen years.
+
+---
+
+SLIDE 19 — CTA (scene 18, ~5s)
+
+Follow at bitcoin devs for more. Next up: the timewarp attack.

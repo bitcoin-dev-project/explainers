@@ -5,6 +5,12 @@ import SegWitVideo from '@/episodes/ep2-segwit/VideoTemplate';
 import SHA256Video from '@/episodes/ep3-sha256/VideoTemplate';
 import GarbledCircuitsVideo from '@/episodes/ep4-garbled-circuits/VideoTemplate';
 import SixtyFourByteVideo from '@/episodes/ep5-64byte-tx/VideoTemplate';
+import DuplicateTxidVideo from '@/episodes/ep6-duplicate-txid/VideoTemplate';
+import OverwriteVideo from '@/episodes/ep7-duplicate-tx-bip54/VideoTemplate';
+import KeccakVideo from '@/episodes/ep8-keccak-sha3/VideoTemplate';
+import WorstCaseBlockVideo from '@/episodes/ep9-worst-case-block/VideoTemplate';
+import BIP54OverviewVideo from '@/episodes/ep10-bip54-overview/VideoTemplate';
+
 
 const ROUTES: Record<string, () => React.ReactNode> = {
   ep1: () => <OffByOneVideo />,
@@ -12,6 +18,11 @@ const ROUTES: Record<string, () => React.ReactNode> = {
   ep3: () => <SHA256Video />,
   ep4: () => <GarbledCircuitsVideo />,
   ep5: () => <SixtyFourByteVideo />,
+  ep6: () => <DuplicateTxidVideo />,
+  ep7: () => <OverwriteVideo />,
+  ep8: () => <KeccakVideo />,
+  ep9: () => <WorstCaseBlockVideo />,
+  ep10: () => <BIP54OverviewVideo />,
 };
 
 function getRoute() {

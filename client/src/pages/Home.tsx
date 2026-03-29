@@ -43,12 +43,62 @@ const EPISODES = [
   },
   {
     id: 'ep5',
-    number: 4,
+    number: 5,
     title: 'The 64-Byte Transaction Bug',
     description:
       'How a Merkle tree ambiguity lets attackers fake SPV proofs — and the BIP 54 fix that bans it.',
     scenes: 16,
     duration: '6:24',
+    status: 'draft' as const,
+  },
+  {
+    id: 'ep6',
+    number: 6,
+    title: "Bitcoin's Identity Crisis",
+    description:
+      'How duplicate coinbase txids corrupted the UTXO set, and the 15-year journey from BIP 30 to BIP 54 to fix it.',
+    scenes: 19,
+    duration: '2:36',
+    status: 'draft' as const,
+  },
+  {
+    id: 'ep7',
+    number: 7,
+    title: 'The Overwrite',
+    description:
+      'How duplicate coinbase TXIDs silently destroyed 100 BTC, the accidental time bomb in block 164,384, and BIP 54\'s permanent fix.',
+    scenes: 18,
+    duration: '2:35',
+    status: 'draft' as const,
+  },
+  {
+    id: 'ep8',
+    number: 8,
+    title: 'Keccak SHA3-256: The Sponge',
+    description:
+      'Why Bitcoin double-hashes to avoid length extension — and how Keccak\'s sponge construction solves it by design.',
+    scenes: 17,
+    duration: '2:35',
+    status: 'draft' as const,
+  },
+  {
+    id: 'ep9',
+    number: 9,
+    title: 'Worst-Case Block Validation',
+    description:
+      'How a single crafted transaction can stall a node for 10 hours — and how BIP 54 caps it to 3 seconds.',
+    scenes: 14,
+    duration: '1:56',
+    status: 'draft' as const,
+  },
+  {
+    id: 'ep10',
+    number: 10,
+    title: 'BIP 54: The 4 Bugs Bitcoin Never Fixed',
+    description:
+      'A diagnostic scan of Bitcoin\'s 4 consensus bugs — the 5-year stall, the Murch-Zawy discovery, and the Great Consensus Cleanup.',
+    scenes: 13,
+    duration: '1:47',
     status: 'draft' as const,
   },
 ];

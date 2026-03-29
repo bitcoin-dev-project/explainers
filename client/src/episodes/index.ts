@@ -3,3 +3,8 @@ export { default as SegWitVideo } from './ep2-segwit/VideoTemplate';
 export { default as SHA256Video } from './ep3-sha256/VideoTemplate';
 export { default as GarbledCircuitsVideo } from './ep4-garbled-circuits/VideoTemplate';
 export { default as SixtyFourByteVideo } from './ep5-64byte-tx/VideoTemplate';
+export { default as DuplicateTxidVideo } from './ep6-duplicate-txid/VideoTemplate';
+export { default as OverwriteVideo } from './ep7-duplicate-tx-bip54/VideoTemplate';
+export { default as KeccakVideo } from './ep8-keccak-sha3/VideoTemplate';
+export { default as WorstCaseBlockVideo } from './ep9-worst-case-block/VideoTemplate';
+export { default as BIP54OverviewVideo } from './ep10-bip54-overview/VideoTemplate';
