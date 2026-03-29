@@ -10,6 +10,7 @@ import OverwriteVideo from '@/episodes/ep7-duplicate-tx-bip54/VideoTemplate';
 import KeccakVideo from '@/episodes/ep8-keccak-sha3/VideoTemplate';
 import WorstCaseBlockVideo from '@/episodes/ep9-worst-case-block/VideoTemplate';
 import BIP54OverviewVideo from '@/episodes/ep10-bip54-overview/VideoTemplate';
+import CharacterDemo from '@/pages/CharacterDemo';
 
 
 const ROUTES: Record<string, () => React.ReactNode> = {
@@ -23,6 +24,7 @@ const ROUTES: Record<string, () => React.ReactNode> = {
   ep8: () => <KeccakVideo />,
   ep9: () => <WorstCaseBlockVideo />,
   ep10: () => <BIP54OverviewVideo />,
+  characters: () => <CharacterDemo />,
 };
 
 function getRoute() {

@@ -41,3 +41,7 @@ export { Camera } from './camera';
 
 // GSAP utilities — imperative timeline animations
 export { useGSAP, useTimeline, useSceneGSAP, gsapPresets } from './gsap-utils';
+
+// Characters — expressive SVG stick figure characters with speech bubbles
+export { Character, SpeechBubble } from './characters';
+export type { CharacterProps, CharacterName, Emotion, LookDirection, Gesture } from './characters';
