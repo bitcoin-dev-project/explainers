@@ -657,31 +657,49 @@ import type { CharacterProps, Emotion, Gesture, LookDirection } from '@/lib/vide
 - `shrug` — both arms raised outward ("I dunno")
 - `present` — right arm raised presenting something
 
-### Dialogue Scene Pattern
-Characters work best in dialogue pairs — Alice explains, Bob asks:
+### Character Positioning Rules — CRITICAL
+
+**Characters MUST move between scenes.** Do NOT place characters at one fixed position for the whole episode — this makes them feel like static decorations instead of participants.
+
+**The `position` and `size` props are animated with springs.** When you change `position` or `size` based on the current scene, the character smoothly glides to the new spot. Use scene-driven expressions:
 
 ```tsx
-{/* Alice explains on the left */}
-<Character
-  name="alice"
-  emotion="explaining"
-  gesture="present"
-  lookAt="right"
-  says="Each block has a hash..."
-  position={{ x: '25%', y: '85%' }}
-  size="8vw"
-/>
-
-{/* Bob reacts on the right */}
-<Character
-  name="bob"
-  emotion="curious"
-  lookAt="left"
-  says="But what if two match?"
-  position={{ x: '75%', y: '85%' }}
-  size="8vw"
-/>
+{sceneRange(s, 3, 14) && (
+  <>
+    <Character
+      name="alice"
+      emotion={s <= 9 ? 'explaining' : 'worried'}
+      gesture={s <= 6 ? 'present' : 'point'}
+      lookAt={s >= 12 ? 'down' : 'right'}
+      says={s === 3 ? 'Every block starts with a coinbase...' : s === 7 ? 'It overwrites the first.' : undefined}
+      position={{
+        x: '8%',
+        y: s >= 12 ? '30%' : '75%',  // glides up when timeline is below
+      }}
+      size={s >= 12 ? '5vw' : '6vw'}
+    />
+    <Character
+      name="bob"
+      emotion={s === 7 ? 'confused' : s >= 12 ? 'surprised' : 'curious'}
+      lookAt={s >= 12 ? 'down' : 'left'}
+      says={s === 7 ? 'Where did my 50 BTC go?' : undefined}
+      position={{
+        x: '92%',
+        y: s >= 12 ? '30%' : '75%',
+      }}
+      size={s >= 12 ? '5vw' : '6vw'}
+    />
+  </>
+)}
 ```
+
+**Position characters relative to each scene's content:**
+- Content fills the top? → Characters at bottom (`y: '75-85%'`)
+- Content fills the bottom (timeline, chart)? → Characters at top (`y: '25-35%'`)
+- Zoomed-in scene with no room? → **Hide characters entirely** for that scene
+- Content centered? → Characters flank it at edges (`x: '8%'` / `x: '92%'`)
+
+**Hide characters during full-screen content.** If a scene zooms to 1.5x+ and content fills the viewport, do not render characters — they will overlap. Exclude those scenes from the `sceneRange`.
 
 ### When to Use Characters
 - **Dialogue-Driven teaching** — Alice and Bob discuss the topic conversationally
@@ -690,11 +708,17 @@ Characters work best in dialogue pairs — Alice explains, Bob asks:
 - **NOT every episode needs characters** — use them when the topic benefits from a conversational explanation, not as decoration
 
 ### Storyboard Character Notation
-When storyboarding scenes with characters, use this format:
+When storyboarding scenes with characters, note position changes:
 ```
-CHARACTERS:
-  alice: emotion=explaining, gesture=present, lookAt=right, says="Short speech"
-  bob: emotion=curious, lookAt=left, says="Question?"
+CHARACTERS (scenes 3-13):
+  alice: default position=(8%, 75%), size=6vw
+    scene 3: emotion=explaining, gesture=present, says="Short speech"
+    scene 7: emotion=worried, gesture=point
+    scene 12+: position=(8%, 30%), size=5vw, lookAt=down  ← moves up for timeline
+  bob: default position=(92%, 75%), size=6vw
+    scene 7: emotion=confused, says="Question?"
+    scene 12+: position=(92%, 30%), size=5vw, lookAt=down
+  HIDDEN: scenes 5-6 (zoomed in, no room)
 ```
 
 ## Content Checklist

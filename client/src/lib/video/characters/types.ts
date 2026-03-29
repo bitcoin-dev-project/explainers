@@ -30,6 +30,8 @@ export interface CharacterProps {
   size?: string;
   className?: string;
   style?: React.CSSProperties;
+  /** Spring transition config for position/size changes between scenes */
+  transition?: Record<string, unknown>;
 }
 
 // Internal config types

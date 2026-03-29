@@ -40,6 +40,8 @@ const RIGHT_FOOT = { x: 88, y: 196 };
 
 const spring = { type: 'spring' as const, stiffness: 250, damping: 22 };
 
+const positionSpring = { type: 'spring' as const, stiffness: 120, damping: 22 };
+
 export function Character({
   name,
   emotion = 'neutral',
@@ -51,6 +53,7 @@ export function Character({
   size = '10vw',
   className,
   style,
+  transition: customTransition,
 }: CharacterProps) {
   const preset = CHARACTER_PRESETS[name];
   const emo = EMOTION_CONFIGS[emotion];
@@ -68,17 +71,21 @@ export function Character({
   const reY = RIGHT_EYE.cy + look.y + emo.eyeOffsetY;
 
   return (
-    <div
+    <motion.div
       className={className}
       style={{
         position: 'absolute',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        ...(position && { left: position.x, top: position.y }),
         transform: 'translate(-50%, -100%)',
         ...style,
       }}
+      animate={{
+        ...(position && { left: position.x, top: position.y }),
+        width: size,
+      }}
+      transition={customTransition ?? positionSpring}
     >
       {/* ─── Speech Bubble ─── */}
       <AnimatePresence>
@@ -249,6 +256,6 @@ export function Character({
           </motion.g>
         </motion.g>
       </motion.svg>
-    </div>
+    </motion.div>
   );
 }
