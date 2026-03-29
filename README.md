@@ -1,205 +1,78 @@
-# ExplainLab
+# ExplainAgent
 
-AI animation studio pipeline that turns a topic into a fully produced explainer video through multi-agent orchestration.
+Multi-agent pipeline that turns any technical topic into an animated explainer video.
+
+```bash
+./scripts/auto-episode.sh "BIP 54 Consensus Cleanup" 11 bip54-cleanup
+```
+
+One command in, finished episode out. Researched, storyboarded, animated, and quality-checked by specialized AI agents.
 
 ---
 
-## How the Pipeline Works
+## How It Works
 
+Two agent roles with **separated permissions** prevent any single agent from drifting off-course:
 
-The pipeline orchestrates **multiple specialized AI agents** that research, design, build, and critique each episode. Agents are separated by role — some can only think and write guidance, others can only write code — so no single agent controls the full process.
+- **Planner**: reads code and artifacts, writes guidance. Cannot edit code.
+- **Executor**: builds what the Planner specifies. Cannot make creative decisions alone.
 
-```
-                          TOPIC
-                            |
-            +---------------+---------------+
-            |               |               |
-     Technical         Visual          Narrative
-     Research         Research          Angle
-            |               |               |
-            +-------+-------+
-                    |
-              Merged Research
-                    |
-         +---------+---------+
-         |                   |
-    Director              (can't
-    Review              edit code)
-         |
-   Creative Vision
-         |
-     Storyboard
-         |
-    Director Review
-         |
-    Motion Script -------- timestamped animation spec
-         |
-      Wireframe ---------- skeleton layout + camera math
-         |
-    Wireframe QA
-         |
-   Build Components ------ custom visual code
-         |
-   Build Template --------- full VideoTemplate.tsx
-         |
-     Visual QA ------------ screenshot verification
-         |
-         +---->  CRITIQUE LOOP (up to 3x)
-         |       +----------+-----------+
-         |       |          |           |
-         |    Visual     Technical   Audience
-         |   Designer    Reviewer     Proxy
-         |       |          |           |
-         |       +----+-----+
-         |            |
-         |      Merged Critique --- score/100
-         |            |
-         |       Fix Plan (Planner)
-         |            |
-         |       Rebuild (Executor)
-         |            |
-         +----<  score >= 75? done : loop
-                      |
-              Voiceover (optional)
-                      |
-           Cross-Episode Learning
-                      |
-                   EPISODE
-```
+The pipeline runs in four stages:
+
+### 1. Research (3 parallel agents)
+Three agents research the topic simultaneously: one for technical depth, one for visual inspiration, one for narrative angle. Results merge into a single document.
+
+### 2. Design (Planner + Executor alternate)
+The Planner sets creative direction (teaching approach, hook, story arc). The Executor translates that into a visual concept and scene-by-scene storyboard. The Planner reviews the storyboard and writes a timestamped motion script before any code is written.
+
+### 3. Build (Executor)
+A wireframe is built first: colored rectangles at exact positions to verify camera math. Once positioning is confirmed, real components replace the placeholders. Screenshots are captured and verified after the build.
+
+### 4. Critique Loop (3 parallel agents, up to 3 iterations)
+Three critics score the episode independently:
+
+| Critic | Evaluates | Weight |
+|---|---|---|
+| Visual Designer | Aesthetics, motion variety, camera usage | /50 |
+| Technical Reviewer | Accuracy, code quality, positioning math | /30 |
+| Audience Proxy | Hook, teaching flow, emotional arc | /20 |
+
+Scores merge to a total out of 100. Below **75** triggers a fix cycle: the Planner writes a bounded fix plan (3-5 priorities, not a rewrite), the Executor implements it, and the critics score again.
 
 ---
 
-## The Agents
+## Agent Communication
 
-### Planner (Director)
-**Can:** read code, read artifacts, write guidance documents
-**Cannot:** edit code, run builds, touch the filesystem
-
-The Planner reviews research, sets creative direction, reviews storyboards, writes fix plans, and extracts lessons. It steers without building — like a director who never touches the camera.
-
-### Executor (Builder)
-**Can:** read/write/edit code, run builds, use all tools
-**Cannot:** make creative decisions without Planner guidance
-
-The Executor builds what the Planner specifies. It creates components, assembles the VideoTemplate, fixes bugs, and iterates on critique feedback. It follows the fix plan in priority order.
-
-### Parallel Research Agents (3x)
-Three independent agents research the topic simultaneously:
-- **Technical** — finds the BIP, mailing list posts, protocol-level details, real values
-- **Visual** — searches for existing explanations, visual metaphors, animation techniques
-- **Narrative** — finds the surprising angle, common misconceptions, the emotional arc
-
-Results are merged into a single research document.
-
-### Parallel Critique Agents (3x)
-Three independent agents review the built episode simultaneously:
-- **Visual Designer** — scores aesthetics, motion design, animation variety, camera usage (out of 50)
-- **Technical Reviewer** — scores accuracy, code quality, positioning math correctness (out of 30)
-- **Audience Proxy** — walks through as a first-time viewer, scores hook, teaching flow, emotional arc (out of 20)
-
-Combined score out of 100. Below 75 triggers another critique-plan-rebuild loop.
-
----
-
-## Pipeline Phases in Detail
-
-### Phase 1: Parallel Research
-Three agents run simultaneously. Each searches the web, reads source material, and writes a focused report. A merge step synthesizes them into one document, resolving conflicts (technical agent wins on facts, narrative agent wins on story decisions, visual agent wins on presentation).
-
-### Phase 2: Director Research Review
-The Planner reads the merged research and writes creative direction: teaching approach, hook, story arc, aha moment placement, what to skip, visual differentiation from past episodes. Opinionated and decisive — not "could be X or Y."
-
-### Phase 3: Creative Vision
-The Executor designs the episode's visual identity: signature animation, color palette, layout pattern, motion personality, custom components needed. Rates the concept on originality, topic fit, wow factor, and feasibility. Also brainstorms 2 alternatives.
-
-### Phase 4: Storyboard
-Scene-by-scene breakdown with: duration, on-screen text (max ~15 words), visual description, animation details, and a canvas zone plan with camera math for every shot.
-
-### Phase 5: Director Storyboard Review
-The Planner verifies alignment between research direction and storyboard. Checks text length, progressive reveal, scene pacing. Writes build priorities and flags risk areas. Last review before code.
-
-### Phase 5.5: Motion Script
-Timestamped animation spec — every element gets an exact time (`0.0s`, `0.4s`, `1.2s`...) and technique (morph, GSAP timeline, CE enter, CSS keyframes). Eliminates timing guesswork during the build.
-
-### Phase 5.7: Wireframe Build + QA
-A skeleton VideoTemplate with colored rectangles at exact canvas positions. Camera shots are wired up. Screenshots are captured and verified. Positioning must be perfect before real components are built on top.
-
-### Phase 6-7: Build Components + Template
-Custom visual components are built first (the signature animation), then assembled into the full VideoTemplate. The wireframe's verified positions are preserved — placeholder boxes get replaced with real visuals.
-
-### Phase 8: Visual QA
-Screenshots of every scene. An agent verifies positioning math (`screen = canvas x scale + camera`), checks for off-screen content, overlapping elements, empty scenes. Fixes issues and updates the position audit.
-
-### Phase 9: Critique Loop
-Three parallel critics score the episode. Scores merge to a total out of 100. Below 75: a Planner writes a bounded fix plan (3-5 priorities max, not a rewrite), then an Executor implements it. Loop runs up to 3 times.
-
-### Phase 10: Voiceover (optional)
-Writes a transcript, creates an ElevenLabs generation script, updates scene durations (`audio_length + 2500ms buffer`), and adds audio sync with timing comments.
-
-### Phase 11: Cross-Episode Learning
-Extracts generalizable lessons from the critique history. What bugs appeared? What scored well? What took multiple iterations? Saves to a cumulative `lessons-learned.md` that future episodes read during the build phase.
-
----
-
-## Handoff Architecture
-
-Agents communicate through markdown artifacts, not shared memory. Each phase writes a `.md` file that the next phase reads:
+Agents don't share memory. They communicate through markdown artifacts. Each phase writes a file that the next phase reads:
 
 ```
-.auto-episode/ep7-merkle-trees/
-  research-technical.md     -- from parallel agent A
-  research-visual.md        -- from parallel agent B
-  research-angle.md         -- from parallel agent C
-  research.md               -- merged
-  director-research.md      -- Planner creative direction
-  creative-brief.md         -- Executor visual design
-  storyboard.md             -- scene-by-scene plan
-  director-storyboard.md    -- Planner build guidance
-  motion-script.md          -- timestamped animation spec
-  wireframe-qa.md           -- positioning verification
-  visual-qa.md              -- screenshot verification
-  critique-visual-iter1.md  -- Visual Designer critique
-  critique-tech-iter1.md    -- Technical Reviewer critique
-  critique-audience-iter1.md -- Audience Proxy critique
-  critique-iter1.md         -- merged critique + score
-  fix-plan-iter1.md         -- Planner's fix priorities
-  screenshots-wireframe/    -- wireframe captures
-  screenshots-iter1/        -- post-build captures
-  lessons-learned.md        -- cumulative cross-episode learning
-  pipeline.log              -- full run log with timestamps + costs
+.auto-episode/ep11-bip54-cleanup/
+  research-technical.md      3 parallel research reports
+  research-visual.md              ↓
+  research-angle.md               ↓
+  research.md                merged research
+  director-research.md       Planner's creative direction
+  creative-brief.md          visual concept + signature animation
+  storyboard.md              scene-by-scene plan
+  director-storyboard.md     Planner's build guidance
+  motion-script.md           timestamped animation spec
+  wireframe-qa.md            positioning verification
+  critique-iter1.md          merged critique + score
+  fix-plan-iter1.md          Planner's fix priorities
+  screenshots-iter1/         visual captures per scene
+  pipeline.log               timestamps + costs
 ```
-
-The Planner physically cannot edit code (its tool set is restricted). The Executor cannot make creative decisions without a handoff document. This separation prevents a single agent from drifting off-course without review.
 
 ---
 
 ## Tech Stack
 
-| Layer | Tool |
+| | |
 |---|---|
-| Animation | React + Framer Motion + GSAP (per-episode choice) |
-| Rendering | Single-canvas architecture, viewport-relative units |
-| Camera | Oversized canvas + transform for pan/zoom |
+| Animation | React + Framer Motion + GSAP |
 | Recording | Playwright + FFmpeg (browser to MP4) |
-| Voiceover | ElevenLabs API |
-| Agent orchestration | Claude Code CLI (`claude -p`) with role-restricted tool sets |
-
----
-
-## Episodes
-
-| # | Topic | Core Visual |
-|---|---|---|
-| 1 | Off-by-one error | Fencepost block grid |
-| 2 | SegWit addresses | Bech32 character grid |
-| 3 | SHA-256 padding | Binary block padding |
-| 4 | Garbled circuits | AND gate truth table |
-| 5 | 64-byte TX bug | Merkle tree SVG |
-| 6 | Duplicate TXID | Mirror cards + collision |
-| 7 | Duplicate TX (BIP 54) | — |
-| 8 | Keccak vs SHA-3 | — |
-| 9 | Worst-case block | — |
-| 10 | BIP 54 overview | — |
+| Voiceover | ElevenLabs (optional) |
+| Orchestration | Claude Code CLI with role-restricted tool sets |
 
 ---
 
@@ -207,31 +80,26 @@ The Planner physically cannot edit code (its tool set is restricted). The Execut
 
 ```bash
 # Generate an episode (pauses after critique for review)
-./scripts/auto-episode.sh "Merkle Trees" 11 merkle-trees
+./scripts/auto-episode.sh "BIP 54 Consensus Cleanup" 11 bip54-cleanup
 
-# Full auto — no pauses, runs critique loop unattended
-./scripts/auto-episode.sh "Timewarp Attack" 12 timewarp --full-auto
+# Full auto, no pauses
+./scripts/auto-episode.sh "BIP 54 Consensus Cleanup" 11 bip54-cleanup --full-auto
 
-# With voiceover generation
-./scripts/auto-episode.sh "Merkle Trees" 11 merkle-trees --with-voice
+# With voiceover
+./scripts/auto-episode.sh "BIP 54 Consensus Cleanup" 11 bip54-cleanup --with-voice
 
-# Verbose — stream agent output in real-time
-./scripts/auto-episode.sh "Merkle Trees" 11 merkle-trees --verbose
-
-# Preview the result
-npm run dev:client  # → navigate to #ep11
+# Preview
+npm run dev:client  # navigate to #ep11
 
 # Record to MP4
 node scripts/record.mjs
 ```
 
-The pipeline is resumable — if it crashes or you Ctrl+C, re-run the same command and it picks up from the last completed phase.
-
----
+Resumable: re-run the same command after a crash and it picks up from the last completed phase.
 
 ## Requirements
 
 - Node.js 18+
 - Claude Code CLI (`claude`)
 - FFmpeg (for recording)
-- ElevenLabs API key (for voiceover, optional)
+- ElevenLabs API key (optional, for voiceover)
