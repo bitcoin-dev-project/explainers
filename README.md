@@ -1,9 +1,11 @@
 # ExplainLab
 
 AI animation studio pipeline that turns a topic into a fully produced explainer video through multi-agent orchestration.
+
 ---
 
 ## How the Pipeline Works
+
 
 The pipeline orchestrates **multiple specialized AI agents** that research, design, build, and critique each episode. Agents are separated by role — some can only think and write guidance, others can only write code — so no single agent controls the full process.
 
