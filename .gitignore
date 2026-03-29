@@ -31,5 +31,8 @@ vite.config.ts.*
 # IDE / tooling
 .claude/
 
+# Auto-episode pipeline work artifacts
+.auto-episode/
+
 # Dev research assets
 attached_assets/
