@@ -88,7 +88,7 @@ export default function VideoTemplate() {
   const player = useVideoPlayer({ durations: SCENE_DURATIONS });
   const s = player.currentScene;
   return (
-    <div className="w-full h-screen overflow-hidden relative" style={{ backgroundColor: '#E6D3B3' }}>
+    <div className="w-full h-screen overflow-hidden relative" style={{ backgroundColor: EP_COLORS.bg }}>
       {/* Core visual — uses morph, GSAP, Three.js, etc. NOT just CE */}
       <motion.div {...morph(s, { 0: { scale: 0.5 }, 3: { scale: 1, x: -200 }, 6: { x: 0 } })}>
         <SignatureVisual scene={s} />
@@ -332,15 +332,21 @@ Good (one sentence + animated visual):
 ## Visual Identity
 
 ### Brand Constants (the thread between episodes)
-- Background: beige/cream `#E6D3B3` (can shift — see below)
 - Primary accent: BDP Orange `#EB5234`
 - Fonts: Montserrat Bold (`--font-display`), Quicksand (`--font-body`), JetBrains Mono (`--font-mono`)
 - Hedgehog characters (Alice, Bob, Carol) when characters appear
 - `useVideoPlayer` + `DevControls` for playback
 
-### Everything Else Must Vary Per Episode
+### Color Palette Modes (`--palette` flag)
 
-**Background is not sacred.** The beige is a default, not a mandate. An episode about a security attack could use dark charcoal. A mining episode could use deep navy. A cryptography episode could use near-black with neon accents. The background sets the mood — use it.
+The `--palette` flag on `auto-episode.sh` controls color constraints:
+- **`grayscale`** — black, white, grays only. One accent color allowed for emphasis. Stark, data-focused look.
+- **`brand`** — BDP brand palette only (see `references/brand-guidelines.md`). Orange, blue, green, pink, purple + neutrals.
+- **`free`** (default) — no restrictions. Pick whatever serves the mood.
+
+Every episode defines its palette in `EP_COLORS` in `constants.ts`. The `--palette` flag guides what goes in it.
+
+### Everything Else Must Vary Per Episode
 
 **Each episode defines its own palette** in `constants.ts`:
 ```ts
@@ -492,7 +498,7 @@ Answer these before writing any code:
 
 1. **What's the signature visual?** Not a DiagramBox. What custom animation makes this episode instantly recognizable?
 2. **What animation library drives it?** GSAP timeline? Three.js scene? React Spring physics? SVG path morphing?
-3. **What's the background?** Not beige by default. What mood does this topic demand?
+3. **What's the background?** Determined by the `--palette` flag. What mood does your palette choice enable?
 4. **What's the canvas layout?** How big is the canvas? Where are the zones? What's the camera journey — does it backtrack, pan vertically, zoom from 0.3 to 2.5? Does the final scene reveal everything?
 5. **What's the motion verb?** How do elements enter/move/exit? (Not "fade in from below")
 
@@ -783,7 +789,7 @@ When building a new episode, **do NOT read existing episode VideoTemplate.tsx fi
 - `springs.snappy` (400/30) as the only motion
 - No camera/viewport movement
 - No GSAP usage (it's installed but never imported)
-- Background is either beige or dark — no other moods explored
+- No palette variety — background must follow the `--palette` flag
 - No ambient CSS animation (glows, pulses, gradients)
 - No Three.js, no Canvas 2D, no SVG path morphing
 
@@ -793,5 +799,5 @@ When building a new episode, **do NOT read existing episode VideoTemplate.tsx fi
 - Use `useSceneGSAP` for at least one choreographed sequence
 - Define custom EP_COLORS and EP_SPRINGS in constants.ts
 - Core visual must NOT use CE — use morph(), GSAP timeline, SVG morph, or canvas
-- Background must NOT be the default beige unless there's a strong reason
+- Background must follow the `--palette` mode (grayscale/brand/free) — always define in EP_COLORS
 - **Multiple distinct visual compositions** — each act/section gets its own centerpiece visual. No single element stays on screen the whole video. Build, climax, clear, rebuild.
