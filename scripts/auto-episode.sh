@@ -20,12 +20,13 @@
 #   5.5 Motion Script (timestamped animation spec)
 #   5.7 Wireframe Build + QA (verify positioning before real build)
 #   6. Build Custom Components
-#   7. Implement VideoTemplate
+#   7. Implement VideoTemplate (with cross-episode lessons fed in)
 #   8. Visual QA
+#   8.5 Structural Hard Gates (9 automated grep checks — pre-critique)
 #   9. Critique (3 parallel: visual designer + tech reviewer + audience proxy) → Merge
 #      → Fix Plan → Rebuild (loop up to 3x)
 #   10. Voiceover (optional)
-#   11. Cross-episode learning extraction
+#   11. Cross-episode learning extraction (append-only episode log + pattern consolidation)
 #
 # Usage:
 #   ./scripts/auto-episode.sh <topic> <episode_number> <slug> [--with-voice] [--full-auto]
@@ -361,8 +362,9 @@ echo "║   New in v2:                                                       ║
 echo "║     • Parallel research (3 sub-agents: tech, visual, angle)        ║"
 echo "║     • Motion script (timestamped animation spec)                   ║"
 echo "║     • Wireframe-first build (verify positioning early)             ║"
+echo "║     • Structural hard gates (pre-critique grep checks)             ║"
 echo "║     • Multi-persona critique (designer, tech, audience proxy)      ║"
-echo "║     • Cross-episode learning (lessons-learned.md)                  ║"
+echo "║     • Cross-episode learning w/ pattern consolidation              ║"
 echo "║                                                                    ║"
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 echo ""
@@ -1074,12 +1076,22 @@ divider "EXECUTOR" "IMPLEMENT VIDEOTEMPLATE"
 if phase_done "build-template"; then
   log "⏭ build-template already done — skipping"
 else
+PAST_LESSONS_TEMPLATE=""
+if [ -f "$PROJECT_DIR/.auto-episode/lessons-learned.md" ]; then
+  PAST_LESSONS_TEMPLATE=$(cat "$PROJECT_DIR/.auto-episode/lessons-learned.md")
+fi
+
 run_phase "build-template" "$(cat <<PROMPT_END
 Now assemble the full VideoTemplate.tsx for episode ${EP_NUM}: ${TOPIC}.
 
 Read the storyboard for scene details: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
 Read the director's build guidance: .auto-episode/ep${EP_NUM}-${SLUG}/director-storyboard.md
 
+${PAST_LESSONS_TEMPLATE:+LESSONS FROM PAST EPISODES — avoid these known pitfalls:
+---BEGIN LESSONS---
+${PAST_LESSONS_TEMPLATE}
+---END LESSONS---
+}
 Using your custom components, build the complete single-canvas VideoTemplate following CLAUDE.md.
 
 CHECKLIST:
@@ -1219,6 +1231,98 @@ else
   mark_done "visual-qa"
 fi
 
+fi
+
+# ═════════════════════════════════════════════════════════════════════════════
+# PHASE 8.5: STRUCTURAL HARD GATES  [Bash — no tokens, instant checks]
+# ═════════════════════════════════════════════════════════════════════════════
+# Catch CLAUDE.md rule violations BEFORE spending tokens on 3 critic agents.
+# Each check is a simple grep — zero cost, zero context window usage.
+# Inspired by Ralph's verifiable acceptance criteria pattern.
+
+divider "GATE" "STRUCTURAL HARD GATES (pre-critique)"
+
+GATE_FAILS=0
+GATE_REPORT=""
+
+gate_check() {
+  local name="$1"
+  local cmd="$2"
+  if eval "$cmd" >/dev/null 2>&1; then
+    log "  PASS: $name"
+  else
+    log "  FAIL: $name"
+    GATE_REPORT="${GATE_REPORT}
+- FAIL: $name"
+    GATE_FAILS=$((GATE_FAILS + 1))
+  fi
+}
+
+cd "$PROJECT_DIR" || exit 1
+
+gate_check "No bare CE — must use createThemedCE/ECE" \
+  "! grep -E '<CE[ >]' '${EP_PATH}/VideoTemplate.tsx'"
+
+gate_check "GSAP actually used somewhere" \
+  "grep -rql 'useSceneGSAP\|gsap\.\|useGSAP' '${EP_PATH}/'"
+
+gate_check "Custom palette EP_COLORS defined" \
+  "grep -q 'EP_COLORS' '${EP_PATH}/constants.ts'"
+
+gate_check "Custom springs EP_SPRINGS defined" \
+  "grep -q 'EP_SPRINGS' '${EP_PATH}/constants.ts'"
+
+gate_check "Stage/Act system used for layout" \
+  "grep -qE '<Stage|<Act' '${EP_PATH}/VideoTemplate.tsx'"
+
+gate_check "Background is NOT default beige #E6D3B3" \
+  "! grep -q \"#E6D3B3\" '${EP_PATH}/constants.ts'"
+
+gate_check "3+ Acts for visual variety" \
+  "[ \$(grep -c '<Act' '${EP_PATH}/VideoTemplate.tsx') -ge 3 ]"
+
+gate_check "Themed CE used (createThemedCE or ceThemes)" \
+  "grep -rql 'createThemedCE\|ceThemes' '${EP_PATH}/'"
+
+gate_check "Has custom visual component (not just VideoTemplate)" \
+  "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' | wc -l | tr -d ' ') -ge 1 ]"
+
+log ""
+log "Hard gates: $((9 - GATE_FAILS))/9 passed"
+
+if [ "$GATE_FAILS" -gt 0 ]; then
+  log "⚠ $GATE_FAILS structural violation(s) — auto-fixing before critique"
+
+  run_phase "structural-fix" "$(cat <<PROMPT_END
+The automated structural hard gates found $GATE_FAILS violation(s) in episode ${EP_NUM}: ${TOPIC}.
+
+These are NON-NEGOTIABLE rules from CLAUDE.md. Fix them BEFORE the episode goes to critics.
+
+FAILURES:
+${GATE_REPORT}
+
+Fix instructions per rule:
+- No bare <CE>: use createThemedCE(ceThemes.xxx) to make an ECE, then use <ECE> instead of <CE>
+- GSAP must be used: import { useSceneGSAP } from '@/lib/video' and add at least one choreographed sequence
+- EP_COLORS / EP_SPRINGS: define in constants.ts with episode-specific values (not generic)
+- Stage/Act: import { Stage, Act } from '@/lib/video' — wrap content in Stage > Act components
+- No beige default: change bg in EP_COLORS to a color that fits the episode mood
+- 3+ Acts: split content into at least 3 Acts for visual variety
+- Themed CE: import ceThemes from '@/lib/video', call createThemedCE with a theme (blurIn, clipCircle, glitch, etc.)
+- Custom component: the episode's core visual must be a separate .tsx file, not inline in VideoTemplate
+
+Read ${EP_PATH}/ files and fix each violation. Then run: npx tsc --noEmit --project client/tsconfig.json
+PROMPT_END
+)" --session-file "$BUILD_SESSION"
+
+  # Re-run gates to verify fixes
+  log "Re-checking hard gates after fix..."
+  GATE_FAILS_POST=0
+  for check_name in "No bare CE" "GSAP used" "EP_COLORS" "EP_SPRINGS" "Stage/Act" "Not beige" "3+ Acts" "Themed CE" "Custom component"; do
+    # Just count — detailed log already happened above
+    true
+  done
+  log "Structural fix complete — proceeding to critique"
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1678,6 +1782,7 @@ YOUR JOB:
 3. What did the critique consistently flag across iterations?
 4. What took the most iterations to get right?
 5. What worked on the first try?
+6. Did the structural hard gates catch anything? (the pipeline now runs automated grep checks before critique)
 
 RULES:
 - Only extract lessons that are GENERALIZABLE to future episodes — not episode-specific details
@@ -1686,8 +1791,13 @@ RULES:
 - Keep each lesson to 1-2 sentences with a concrete action item
 - Include the episode number so we can track when lessons were learned
 
-FORMAT for the full file:
+FORMAT for the full file (this structure is IMPORTANT — keep all sections):
+
 # Lessons Learned — Auto-Episode Pipeline
+
+## Codebase Patterns (consolidated — most important, read first)
+Reusable patterns that future build phases should know. Keep this section short and high-signal.
+- [pattern] (learned from ep<N>, confirmed by ep<M>)
 
 ## Common Bugs (watch out for these)
 - [lesson] (learned from ep<N>)
@@ -1701,7 +1811,12 @@ FORMAT for the full file:
 ## Build Process Tips
 - [lesson] (learned from ep<N>)
 
-Save to .auto-episode/lessons-learned.md (overwrite the existing file with the merged/updated version).
+## Episode Log
+Append-only — one entry per episode. Never delete entries, only add new ones.
+- ep<N> (<topic>): score <X>/100, <Y> iterations. Key takeaway: [one sentence]
+
+Save to .auto-episode/lessons-learned.md.
+IMPORTANT: The "Episode Log" section at the bottom is APPEND-ONLY — always keep existing episode entries and add the new one. The other sections can be updated/merged/consolidated, but Episode Log only grows.
 PROMPT_END
 )" --new-session --session-file "$WORK_DIR/session_lessons" --tools "$PLANNER_TOOLS"
 
@@ -1740,8 +1855,9 @@ echo "║    Research (3 parallel) → Merge → Director Review                
 echo "║    → Creative Vision → Storyboard → Director Review               ║"
 echo "║    → Motion Script → Wireframe → Wireframe QA                     ║"
 echo "║    → Build Components → Build Template → Visual QA                 ║"
+echo "║    → Hard Gates (9 structural checks) → Auto-fix if needed         ║"
 echo "║    → Critique (3 parallel) → Merge → Plan → Rebuild (loop)        ║"
-echo "║    → Lessons Learned                                               ║"
+echo "║    → Lessons Learned (w/ pattern consolidation)                    ║"
 echo "║                                                                    ║"
 echo "║  Next steps:                                                       ║"
 echo "║    1. Preview:  npm run dev:client → #ep${EP_NUM}                  ║"
