@@ -313,20 +313,29 @@ Reports: **FAIL** (off-screen near-miss), **WARN** (clipped >40%), **INFO** (far
 - **Use as many scenes as needed.** More scenes with less content each > fewer dense scenes.
 
 ## Text Rules
-The animation teaches. Text captions it. The SHA-256 explainer (best performer) averaged **6-10 words per text element**. These are non-negotiable:
-- **ONE sentence per scene heading.** Max ~15 words.
-- **Two short text elements are OK** — a heading + a subtitle. Keep both short (6-10 words each).
+Text and visuals work TOGETHER. The best scenes have **text integrated into the visual** — labels on diagrams, values inside blocks, formulas next to the thing they describe. Think 3Blue1Brown: equations animate alongside the geometry, labels point to the thing they name.
+
+There are two kinds of text:
+1. **Text inside visuals** (labels, values, formulas, block numbers, field names) — this is ENCOURAGED. Put "2016 × 10 min = 14 Days" right next to the block chain. Label the epoch boundaries. Show the hex values inside the byte cells. This text IS the visual.
+2. **Screen-space captions** (headings, one-liners floating above the visual) — keep these short. ONE sentence, max ~15 words. These orient the viewer but don't carry the teaching.
+
+Rules:
+- **Text inside visuals has no word limit** — a formula, a comparison table, labeled fields, real values with arrows pointing to them. Use as much as the concept needs.
+- **Screen-space captions: ONE sentence, max ~15 words.** Two short elements OK (heading + subtitle).
 - **No paragraphs on screen.** 3+ sentences = split across scenes.
 - **Use real values.** "bitcoin" → `01100010...` beats "the input gets converted to binary."
 - **Progressive reveal.** Each scene adds ONE piece. Like a conversation, not a lecture.
 - **Breathing room.** Whitespace is content. Let animations breathe.
+- **Questions and quizzes are powerful.** "How long does a retarget period take? A) Exactly 2 weeks B) 2 weeks minus 10 minutes" engages the viewer. Use when the concept has a non-obvious answer.
 
-Bad (too much text in one scene):
-> "Bitcoin adjusts mining difficulty every 2016 blocks (~2 weeks). Too fast? Difficulty goes UP. Too slow? Difficulty goes DOWN."
+Bad (text floating above a complex animation that doesn't explain anything):
+> Caption: "Bitcoin retargets every 2016 blocks"
+> Visual: abstract rings pulsing with no labels or values
 
-Good (one sentence + animated visual):
-> Text: "Bitcoin retargets every 2016 blocks"
-> Animation: timeline of blocks building up, clock counting ~2 weeks, UP/DOWN arrows animating in
+Good (text integrated into a clear diagram):
+> Visual: block chain showing blocks 0, 1, ... 2015 → "Retarget" marker → 2016, 2017, ... 4031
+> Labels: "EPOCH 1" and "EPOCH 2" with "10 min" between blocks
+> Formula: "2016 × 10 min = 14 Days" below the chain
 
 ## Timing Guidelines
 - Scene intro transition: 0.4-0.6s

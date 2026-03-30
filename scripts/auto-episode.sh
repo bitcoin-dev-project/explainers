@@ -917,9 +917,10 @@ Follow CLAUDE.md rules strictly, especially:
 For EACH scene, write:
 1. SCENE NUMBER and NAME
 2. DURATION (simple: 6-7s, diagram: 8-10s, complex: 10-12s)
-3. ON-SCREEN TEXT (the short caption — remember, max ~15 words)
-4. VISUAL DESCRIPTION (what the viewer sees — the animation that teaches)
-5. ANIMATION DETAILS (what enters, exits, morphs, specific delays)
+3. ON-SCREEN CAPTION (short heading — max ~15 words, orients the viewer)
+4. TEXT INSIDE VISUAL (labels, values, formulas, field names INSIDE the diagram itself — no word limit. Think 3Blue1Brown: equations next to geometry, labels pointing at things, real values inside blocks, "2016 × 10 min = 14 Days" next to the block chain. This is where the teaching happens. The visual should be self-explanatory with its embedded text.)
+5. VISUAL DESCRIPTION (what the viewer sees — the diagram/animation with its labels)
+6. ANIMATION DETAILS (what enters, exits, morphs, specific delays)
 6. CHARACTERS (if this scene uses Alice/Bob — otherwise omit):
    alice: emotion=<emotion>, gesture=<gesture>, lookAt=<dir>, says="<speech>"
    bob: emotion=<emotion>, gesture=<gesture>, lookAt=<dir>, says="<speech>"
