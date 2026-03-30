@@ -40,17 +40,14 @@ Add via `npm install` if an episode genuinely needs them (don't add speculativel
 
 ### Signature Visual Quality Bar
 
-**The #1 priority is teaching clarity.** The visual exists to make the concept click — not to impress with complexity. Sometimes a clean, minimal GSAP sequence teaches better than a 400-line Canvas simulation. Let the concept dictate the complexity, not the other way around.
+The core visual component must have:
+1. **An underlying model** — physics simulation, math computation, data-driven grid, or state machine. Not just styled divs with transitions.
+2. **Continuous life** — ambient motion between scene changes (Brownian drift, shimmer, `requestAnimationFrame` loop, CSS @keyframes). The scene feels alive, not frozen.
+3. **Multiple modes/states** — behavior changes across scenes (e.g., idle → active → climax → resolution), not just visibility on/off.
+4. **Layered rendering** — glow + core + highlight, gradients, shadows, bloom. Depth, not flat single-layer elements.
+5. **The visual must teach without voiceover** — a viewer watching on mute should understand the core concept from the animation alone. If the visual is just decoration while text does the teaching, it fails this bar. The animation IS the explanation.
 
-That said, a visual that's *too* simple (just divs fading in) won't be memorable or engaging. The sweet spot: **as simple as the concept allows, but with enough craft to feel alive and purposeful.** Use these as quality signals, not rigid rules:
-
-1. **An underlying model** — the visual should represent something real (a data structure, a process, a computation), not just decorative shapes. The model can be simple — a Merkle tree growing nodes is a model. A UTXO set with insertions is a model.
-2. **Continuous life** — something should feel alive between scene transitions. This can be subtle — a gentle CSS pulse, a slow gradient shift — not everything needs a 60fps particle system.
-3. **Multiple modes/states** — the visual should evolve across scenes, not stay static the whole episode. But "evolve" can mean a clean GSAP choreography adding elements step by step — it doesn't have to mean physics mode switches.
-4. **Layered rendering** — some depth (subtle glow, shadow, gradient) goes a long way. But clean and minimal beats cluttered and overproduced.
-5. **Complexity should match the concept** — a simple concept (fencepost error) needs a simple visual. A complex concept (sponge construction) justifies a complex simulation. Don't force 500 lines when 150 lines teaches it better.
-
-Reference: EP8 `SpongeCanvas.tsx` (497 lines, Canvas 2D — justified by the concept's physical metaphor) and EP9 `HeatmapCanvas.tsx` (321 lines, Canvas 2D — justified by needing to show O(n²) blowup visually). These are the high end. Not every episode needs this level — but no episode should be just CE fade-ins on styled divs.
+Reference implementations: EP8 `SpongeCanvas.tsx` (497 lines, Canvas 2D particle physics with 5 modes) and EP9 `HeatmapCanvas.tsx` (321 lines, Canvas 2D grid with 3 fill modes and heat color ramp).
 
 ## Episode Architecture — Single Canvas
 
@@ -781,7 +778,7 @@ CHARACTERS (scenes 3-13):
 - Find a natural analogy (or skip it if none fits)
 - Open from what the viewer already knows, then build toward the technical concept
 - **One sentence per scene heading, max ~15 words** — if you're writing more, split it
-- **Most scenes should have animated visuals** — text captions the animation, not the other way around. A deliberate text-only moment for emphasis or contrast is a valid design choice; defaulting to text-only because it's easier is not.
+- **Every scene should have animated visuals** — text captions the animation, not the other way around.
 - Use a real worked example with actual values when possible
 - Progressive reveal in every scene — staggered delays, never dump everything at once
 - **Vary motion style to match the topic's mood** — don't use identical spring configs for every episode

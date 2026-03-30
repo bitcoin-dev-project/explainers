@@ -8,7 +8,7 @@
 # Architecture:
 #   Planner (Director)  — thinks, reviews, steers (CAN'T edit code)
 #   Executor (Builder)  — implements, builds, fixes (CAN edit code)
-#   Parallel agents     — run simultaneously (3 research, 2 critique)
+#   Parallel agents     — 3 agents run simultaneously (research, critique)
 #   Handoff files       — each phase writes .md artifacts the next reads
 #
 # Pipeline flow:
@@ -167,7 +167,7 @@ DEV_SERVER_PID=""
 DEV_PORT=5173
 
 start_preview() {
-  local ep_hash="ep${EP_NUM}"
+  local ep_hash="${1:-ep${EP_NUM}}"
 
   # Check if dev server is already running
   if curl -s "http://localhost:${DEV_PORT}" >/dev/null 2>&1; then
@@ -190,7 +190,7 @@ start_preview() {
     log "Dev server ready"
   fi
 
-  # Open browser to the episode
+  # Open browser
   local url="http://localhost:${DEV_PORT}/#${ep_hash}"
   log "Opening browser: $url"
   if command -v open >/dev/null 2>&1; then
@@ -550,7 +550,7 @@ echo "║     • Parallel research (3 sub-agents: tech, visual, angle)        �
 echo "║     • Motion script (timestamped animation spec)                   ║"
 echo "║     • Wireframe-first build (verify positioning early)             ║"
 echo "║     • Structural hard gates (pre-critique grep checks)             ║"
-echo "║     • Multi-persona critique (quality + storytelling reviewers)     ║"
+echo "║     • Multi-persona critique (designer, tech, audience proxy)      ║"
 echo "║     • Cross-episode learning w/ pattern consolidation              ║"
 echo "║     • Visual checkpoints — watch in browser, approve or redirect   ║"
 echo "║                                                                    ║"
@@ -857,20 +857,16 @@ TECHNIQUE SELECTION — pick the RIGHT tool for the concept:
 - **Framer Motion morph()** — best for declarative state transitions: element moves from position A to B across scenes. Good for layout changes, not for continuous simulation.
 - **Combine techniques.** The best episodes layer multiple: Canvas 2D core + CSS ambient loops + GSAP for supporting element choreography.
 
-THE QUALITY PRINCIPLE — teaching clarity comes first:
-The visual exists to make the concept CLICK, not to impress with complexity. Sometimes a clean, minimal GSAP sequence teaches better than a 400-line Canvas simulation. Let the CONCEPT dictate the complexity. A simple concept (fencepost error) needs a simple visual. A complex concept (sponge construction) justifies a complex simulation.
-
-The sweet spot: as simple as the concept allows, but with enough craft to feel alive and purposeful. Use these as quality SIGNALS, not rigid rules:
-1. UNDERLYING MODEL — the visual should represent something real (a data structure, a process, a computation). The model can be simple — a Merkle tree growing nodes, a UTXO set with insertions, blocks chaining together. It just shouldn't be purely decorative shapes.
-2. CONTINUOUS LIFE — something should feel alive between scene transitions. Can be subtle — a gentle CSS pulse, a slow gradient shift. Not everything needs a 60fps particle system.
-3. MULTIPLE MODES/STATES — the visual should evolve across scenes, not stay static. But "evolve" can mean a clean GSAP choreography adding elements step by step.
-4. LAYERED RENDERING — some depth (subtle glow, shadow, gradient) goes a long way. But clean and minimal beats cluttered and overproduced.
-5. COMPLEXITY MATCHES CONCEPT — don't force 500 lines when 150 teaches it better. But don't settle for styled divs with fade-in when the concept deserves more.
-
-Reference: EP8 SpongeCanvas (497 lines, Canvas 2D) and EP9 HeatmapCanvas (321 lines, Canvas 2D) are the high end — justified by their concepts. Not every episode needs this level, but no episode should be just CE fade-ins on styled divs.
+THE QUALITY BAR — what makes a signature visual memorable:
+1. It has an UNDERLYING MODEL — not just styled divs that animate. A particle simulation, a mathematical curve, a grid with computed values, a physics engine. The model drives the visual, not hardcoded keyframes.
+2. It has CONTINUOUS LIFE — something is always moving, even between scene transitions. Brownian motion, ambient shimmer, pulsing glow. The scene feels alive, not frozen between state changes.
+3. It has MULTIPLE MODES/STATES — the same visual behaves differently across scenes. A sponge tank that absorbs, permutes, squeezes, bounces attacks. A heatmap that fills linearly, then quadratically, then gets capped. Mode changes create drama.
+4. It has LAYERED EFFECTS — not one flat animation but depth: glow underneath + core element + highlight on top. Gradients, shadows, bloom, caustics.
+5. It TEACHES WITHOUT VOICEOVER — a viewer watching on mute should understand the core concept from the animation alone. If the visual is just decoration while text does the teaching, the concept is wrong. The animation IS the explanation.
+Reference: EP8 SpongeCanvas (497 lines, Canvas 2D particle physics, 5 modes) and EP9 HeatmapCanvas (321 lines, Canvas 2D grid, 3 fill modes with heat color ramp) set the quality bar.
 
 For your chosen concept, detail:
-a) THE SIGNATURE VISUAL — the ONE custom animation that makes this episode instantly recognizable. Describe: what rendering technique and WHY that technique fits this concept? What does the visual represent? How does it evolve across scenes?
+a) THE SIGNATURE VISUAL — the ONE custom animation that makes this episode instantly recognizable. Describe: what rendering technique? What's the underlying model? What modes/states does it have across scenes? What makes it feel alive between transitions? How does a viewer understand the concept just by watching the animation on mute?
 b) COLOR PALETTE — define EP_COLORS following the color mode above
 c) LAYOUT PATTERN — NOT centered-stack-with-heading — what serves THIS content?
 d) ANIMATION PERSONALITY — spring configs, timing, motion style that matches the topic
@@ -884,7 +880,8 @@ Rate your chosen concept:
 - How naturally it fits the topic (1-10)
 - Visual wow factor (1-10)
 - Feasibility in React + Framer Motion (1-10)
-- Teaching clarity (1-10): does the visual make the concept CLICK, or does it look cool but distract from understanding?
+- Underlying model depth (1-10): does the core visual have a real model (physics, math, data) driving it, or is it just styled divs with transitions?
+- Teaches without voiceover (1-10): could a viewer on mute understand the concept from the animation alone?
 
 Save the full creative brief to .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
 PROMPT_END
@@ -1096,151 +1093,130 @@ if phase_done "wireframe"; then
 else
 
 run_phase "wireframe" "$(cat <<PROMPT_END
-You are building a WIREFRAME VERSION of episode ${EP_NUM}: ${TOPIC} — a skeleton layout that verifies the canvas zones and camera journey BEFORE the real visuals are built.
+You are generating a STORYBOARD PREVIEW CONFIG for episode ${EP_NUM}: ${TOPIC} — a lightweight config that verifies the canvas zones and camera journey BEFORE any real code is built.
 
 Read these for context:
 - Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md (especially the "Canvas Layout" section)
 - Motion script: .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md
 - CLAUDE.md — especially "Camera System"
 
-YOUR JOB: Create a minimal VideoTemplate.tsx using Camera that has:
-1. Camera wrapping all content on a large canvas (size from storyboard)
-2. Colored placeholder rectangles at each zone position (absolute positioning in vw/vh)
-3. Camera shots per scene using focus() or fitRect() helpers (NOT manual x/y math)
-4. SCENE_DURATIONS (use 3000ms per scene — fast iteration)
-5. ECE text placeholders for captions (OUTSIDE Camera, in screen space)
-6. \`zones\` prop on Camera for the dev minimap
-7. FINAL SCENE must use fitRect() to zoom out and show the ENTIRE canvas
+YOUR JOB: Overwrite client/src/preview-config.ts with the episode's zone layout, camera shots, and scene labels. This file is rendered by a pre-built preview page at #preview — no VideoTemplate, no components, no TypeScript compilation needed.
 
-This is NOT the real episode — it's a camera journey test. Each custom component is replaced by a colored <div> at its zone position.
+The preview-config.ts file format:
 
-Example wireframe:
-\`\`\`tsx
-import { Camera, focus, fitRect } from '@/lib/video';
+\`\`\`ts
+import type { CameraShot, CameraZone } from '@/lib/video/camera';
+import { focus, fitRect } from '@/lib/video/camera';
 
-const ZONES = [
-  { label: 'A', x: 0, y: 0, w: 90, h: 80, color: '#EB5234' },
-  { label: 'B', x: 120, y: 0, w: 80, h: 80, color: '#396BEB' },  // 30vw gap
-  { label: 'C', x: 120, y: 110, w: 80, h: 70, color: '#0E9158' }, // 30vh gap
-];
+export interface PreviewScene {
+  label: string;
+  text?: string;
+  description?: string;
+  duration?: number;
+}
 
-const SHOTS = {
-  0: { x: 0, y: 0, scale: 1 },           // Zone A: title
-  2: focus(45, 30, 2.0),                   // Zoom into detail in Zone A
-  4: { x: 0, y: 0, scale: 1 },            // Pull back
-  5: focus(160, 40, 1.2),                  // Pan to Zone B
-  7: focus(160, 145, 1.5),                 // Pan down to Zone C + zoom
-  9: focus(160, 40, 1.0),                  // Backtrack to Zone B
-  11: fitRect(0, 0, 210, 190),             // FINAL: reveal entire canvas
+export interface PreviewConfig {
+  title: string;
+  canvasWidth: string;
+  canvasHeight: string;
+  bg: string;
+  zones: CameraZone[];
+  shots: Record<number, CameraShot>;
+  scenes: PreviewScene[];
+}
+
+export const previewConfig: PreviewConfig = {
+  title: 'EP${EP_NUM} — ${TOPIC}',
+  canvasWidth: '300vw',  // from storyboard canvas dimensions
+  canvasHeight: '200vh',
+  bg: '#0a1628',         // episode background color
+
+  zones: [
+    // From storyboard "Canvas Layout" — each zone is a content region
+    { label: 'A: Intro', x: 5, y: 10, w: 80, h: 70, color: '#3b82f6' },
+    { label: 'B: Core',  x: 120, y: 10, w: 70, h: 70, color: '#22c55e' },
+    // ... more zones from storyboard. Leave 20-30vw gaps between zones.
+  ],
+
+  shots: {
+    // Camera position per scene — use focus() and fitRect() helpers
+    0: focus(45, 45, 1.0),           // Zone A wide
+    2: focus(45, 45, 1.8),           // Zoom into Zone A
+    4: focus(155, 45, 1.3),          // Pan to Zone B
+    // ... one shot per major scene transition
+    // LAST SCENE MUST use fitRect(0, 0, canvasW, canvasH) to reveal entire canvas
+  },
+
+  scenes: [
+    // One entry per scene from the storyboard
+    { label: 'Title Card', text: 'The on-screen text', description: 'What happens visually' },
+    // ... use 3000ms default duration (set explicitly only if different)
+  ],
 };
-
-{/* All content stays mounted — no sceneRange! Needed for backtracking + final reveal */}
-<Camera scene={s} shots={SHOTS} width="260vw" height="200vh" zones={ZONES}>
-  {/* Zone A placeholder */}
-  <div style={{ position: 'absolute', left: '5vw', top: '5vh', width: '80vw', height: '70vh',
-    border: '3px dashed #EB5234', backgroundColor: 'rgba(235,82,52,0.1)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: '#EB5234', fontSize: '2vw', fontFamily: 'var(--font-display)',
-  }}>
-    Zone A — TitleScreen (scenes 0-4)
-  </div>
-  {/* Zone B placeholder */}
-  <div style={{ position: 'absolute', left: '125vw', top: '5vh', width: '70vw', height: '70vh',
-    border: '3px dashed #396BEB', backgroundColor: 'rgba(57,107,235,0.1)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: '#396BEB', fontSize: '2vw', fontFamily: 'var(--font-display)',
-  }}>
-    Zone B — CoreVisual (scenes 5-6, 9-10)
-  </div>
-</Camera>
 \`\`\`
 
-STEPS:
-1. Create ${EP_PATH}/constants.ts with EP_COLORS, EP_SPRINGS, and ZONES array from the storyboard
-2. Create ${EP_PATH}/VideoTemplate.tsx as the wireframe using Camera + focus()/fitRect()
-3. Register in client/src/App.tsx, client/src/pages/Home.tsx, client/src/episodes/index.ts
-4. Run npx tsc --noEmit --project client/tsconfig.json
-5. After the wireframe compiles, run: node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa-wireframe
-   Fix any FAIL issues the tool reports before proceeding.
-6. Preview in browser — check the minimap (bottom-right corner) to verify camera journey covers all zones.
+RULES:
+- Use focus(cx, cy, scale) to center a zone on screen — cx/cy should be the zone's center point
+- Use fitRect(x, y, w, h) for the FINAL scene to reveal the entire canvas
+- Leave 20-30vw gaps between zones (they must not overlap or bleed into each other)
+- Zone colors should be distinct and match the episode mood
+- Scene labels should be SHORT (3-5 words)
+- Scene text should match the storyboard's on-screen captions (6-10 words max)
+- Camera journey must include: zoom variation (0.3 to 2.5), vertical pans, backtracking, final reveal
 
-The wireframe must compile and render. The dev minimap shows the viewport position on the canvas — use it to verify all zones are reachable and the final reveal shows everything.
+STEPS:
+1. Read the storyboard to extract: canvas dimensions, zone positions, camera journey, scene list
+2. Read client/src/preview-config.ts to see the existing format and types
+3. Overwrite client/src/preview-config.ts with the episode's config
+4. Run npx tsc --noEmit --project client/tsconfig.json to verify the config compiles
+5. Save a copy to .auto-episode/ep${EP_NUM}-${SLUG}/preview-config-snapshot.ts for reference
+
+This is NOT the real episode — it is a camera journey test rendered by the pre-built StoryboardPreview page. You are ONLY generating a config object, not a React component.
 PROMPT_END
 )" --new-session --session-file "$BUILD_SESSION"
 fi
 
-# ── WIREFRAME SCREENSHOT VERIFICATION ─────────────────────────────────────
+# ── PREVIEW CONFIG VERIFICATION ───────────────────────────────────────────
 
-divider "EXECUTOR" "WIREFRAME QA"
+divider "EXECUTOR" "PREVIEW CONFIG QA"
 
 if phase_done "wireframe-qa"; then
-  log "⏭ wireframe-qa already done — skipping"
+  log "⏭ wireframe-qa (preview config) already done — skipping"
 else
 
-# Count scenes in wireframe
-WF_SCENE_COUNT=$(cd "$PROJECT_DIR" || exit 1; grep -oE 'scene[0-9]+' "${EP_PATH}/VideoTemplate.tsx" 2>/dev/null | sort -u | wc -l | tr -d ' ')
-[ -z "$WF_SCENE_COUNT" ] && WF_SCENE_COUNT=0
-
-WF_SCREENSHOT_DIR="$WORK_DIR/screenshots-wireframe"
-WF_SCREENSHOT_NOTE="(Screenshots unavailable — verify from code only)"
-
-if [ "$WF_SCENE_COUNT" -gt 0 ]; then
-  log "Capturing wireframe screenshots (${WF_SCENE_COUNT} scenes)..."
-  mkdir -p "$WF_SCREENSHOT_DIR"
-
-  if cd "$PROJECT_DIR" && node scripts/screenshot-scenes.mjs "ep${EP_NUM}" "$WF_SCENE_COUNT" "$WF_SCREENSHOT_DIR" 2>"$WORK_DIR/screenshot-wf-err.log"; then
-    WF_SCREENSHOT_COUNT=$(ls "$WF_SCREENSHOT_DIR"/*.png 2>/dev/null | wc -l | tr -d ' ')
-    log "Captured $WF_SCREENSHOT_COUNT wireframe screenshots"
-    WF_SCREENSHOT_NOTE="Wireframe screenshots at $WF_SCREENSHOT_DIR/. Read EVERY PNG to verify positioning."
-  else
-    log "Wireframe screenshot capture failed (non-fatal)"
-  fi
-fi
-
 run_phase "wireframe-qa" "$(cat <<PROMPT_END
-You are verifying the WIREFRAME layout for episode ${EP_NUM}: ${TOPIC}.
+You are verifying the STORYBOARD PREVIEW CONFIG for episode ${EP_NUM}: ${TOPIC}.
 
-${WF_SCREENSHOT_NOTE}
+Read client/src/preview-config.ts — this is the file that drives the #preview page.
 
-Read ${EP_PATH}/VideoTemplate.tsx (the wireframe version).
+CHECK:
+1. TypeScript compiles: run npx tsc --noEmit --project client/tsconfig.json
+2. The config has zones with 20-30vw gaps (no overlapping neighbors)
+3. Every scene in the storyboard has a corresponding entry in scenes[]
+4. Camera shots cover all zones (no zone is unreachable)
+5. The LAST scene's shot uses fitRect() to reveal the entire canvas
+6. Zone centers match their focus() coordinates in shots
+7. Camera journey has variety: zoom changes (0.3-2.5), vertical pans, backtracking
 
-STEP 1: Run the automated visual QA tool:
-  node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa-wireframe
-
-STEP 2: Read the report at .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa-wireframe/report.md
-- FAIL issues = elements off-screen that should be visible → MUST FIX
-- WARN issues = significant clipping → fix if >40% hidden
-- Read the screenshots to visually confirm
-
-STEP 3: Fix any issues found:
-- Content off-screen → adjust the camera shot for that scene (use focus() or fitRect() to recompute)
-- Zone content too large → resize the zone or increase canvas size
-- Camera shot clipping content → adjust scale or position using focus(cx, cy, scale) helper
-- Check the dev minimap in browser — green viewport rect = good, red = extends past canvas
-
-STEP 4: Re-run the visual QA tool to confirm fixes:
-  node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa-wireframe
-
-Repeat until all FAIL issues are resolved. Then run npx tsc --noEmit --project client/tsconfig.json.
+Fix any issues found in client/src/preview-config.ts.
 
 Save findings to .auto-episode/ep${EP_NUM}-${SLUG}/wireframe-qa.md
 
-The wireframe layout must pass the visual QA tool before we build real components on top of it. Verify the camera journey hits all zones and the final scene reveals the full canvas.
+Compare against the storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
 PROMPT_END
 )" --session-file "$BUILD_SESSION"
 fi
 
-# ── CHECKPOINT 1: WIREFRAME VISUAL REVIEW ────────────────────────────────────
-# The wireframe is built and QA'd. Let the user WATCH the camera journey
-# with placeholder boxes before we spend tokens building real components.
+# ── CHECKPOINT 1: STORYBOARD PREVIEW REVIEW ──────────────────────────────────
+# The preview config is generated. Let the user WATCH the camera journey
+# with placeholder zones at #preview before we spend tokens building components.
 
 if [ "$SKIP_WIREFRAME" = "true" ]; then
-  log "Checkpoint 'WIREFRAME' — skipped (--skip-wireframe)"
-elif ! checkpoint "WIREFRAME — Watch the camera journey" "feedback-wireframe.txt"; then
-  # User chose 'r' (redo) — delete wireframe artifacts and re-run
-  log "Redoing wireframe phase..."
+  log "Checkpoint 'PREVIEW' — skipped (--skip-wireframe)"
+elif ! checkpoint "STORYBOARD PREVIEW — Watch the camera journey" "feedback-wireframe.txt" "preview"; then
+  # User chose 'r' (redo) — delete preview config artifacts and re-run
+  log "Redoing preview config phase..."
   rm -f "$WORK_DIR/.done_wireframe" "$WORK_DIR/.done_wireframe-qa"
-  rm -f "${PROJECT_DIR}/${EP_PATH}/VideoTemplate.tsx"
   exec "$0" "$TOPIC" "$EP_NUM" "$SLUG" "${@:4}"
 fi
 
@@ -1307,13 +1283,13 @@ IMPORTANT:
 - Do NOT use DiagramBox, FlowRow, or shared library components as the core visual
 - Import CE from @/lib/video ONLY for supporting text/labels, not the core animation
 
-SIGNATURE VISUAL QUALITY — teaching clarity is the #1 priority. The visual exists to make the concept click. Sometimes minimal is better than complex. Let the concept dictate the complexity. But the visual should still feel crafted and alive:
-- It should REPRESENT something real (a data structure, a process, a computation) — not just decorative shapes
-- It should feel ALIVE between scene transitions — even a subtle CSS pulse or gradient shift counts
-- It should EVOLVE across scenes — not stay static the whole episode
-- It should have some DEPTH — subtle glow, shadow, or gradient. Clean and minimal beats cluttered, but flat single-layer elements look cheap
-- COMPLEXITY should match the concept — a simple concept needs a simple visual. A complex concept justifies a simulation. Don't force 500 lines when 150 teaches it better.
-Reference: EP8's SpongeCanvas.tsx (497 lines) and EP9's HeatmapCanvas.tsx (321 lines) are the high end. Not every episode needs this — but every episode should be more than styled divs with fade-in.
+SIGNATURE VISUAL QUALITY FLOOR — the core visual component must have:
+- An UNDERLYING MODEL that drives the animation (physics sim, math curve, data grid, state machine) — not just hardcoded CSS transforms on styled divs
+- CONTINUOUS LIFE — ambient motion even between scene changes (Brownian drift, shimmer, pulse). Use requestAnimationFrame for Canvas 2D, or CSS @keyframes for ambient loops
+- MULTIPLE MODES — the visual should behave differently across scenes (e.g., idle → active → climax → resolution), not just appear/disappear
+- LAYERED RENDERING — depth through glow + core + highlight layers, gradients, shadows. Flat single-layer elements look cheap
+- MUST TEACH WITHOUT VOICEOVER — a viewer watching on mute should understand the core concept from the animation alone. If the visual is just decoration while text does the teaching, it fails this bar. The animation IS the explanation.
+Reference: EP8's SpongeCanvas.tsx (497 lines, Canvas 2D particle physics, 5 modes) and EP9's HeatmapCanvas.tsx (321 lines, Canvas 2D grid, 3 fill modes with heat color ramp) set the quality bar.
 - Import { Camera, focus, fitRect } from @/lib/video for layout — place content at zone positions on the canvas, Camera handles viewport movement
 - All visual components stay MOUNTED inside Camera at all times — do NOT use sceneRange() to unmount them. This enables backtracking and the final canvas reveal. Leave 20-30vw gaps between zones so neighbors don't bleed into frame.
 - If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE.md for the full props API (emotions, gestures, lookAt, speech bubbles).
@@ -1523,7 +1499,7 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 # PHASE 8.5: STRUCTURAL HARD GATES  [Bash — no tokens, instant checks]
 # ═════════════════════════════════════════════════════════════════════════════
-# Catch CLAUDE.md rule violations BEFORE spending tokens on critic agents.
+# Catch CLAUDE.md rule violations BEFORE spending tokens on 3 critic agents.
 # Each check is a simple grep — zero cost, zero context window usage.
 # Inspired by Ralph's verifiable acceptance criteria pattern.
 
@@ -1571,11 +1547,14 @@ gate_check "Themed CE used (createThemedCE or ceThemes)" \
 gate_check "Has custom visual component (not just VideoTemplate)" \
   "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' | wc -l | tr -d ' ') -ge 1 ]"
 
+gate_check "Signature visual has substantial complexity (150+ lines)" \
+  "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' ! -name 'constants.ts' -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print \$1}') -ge 150 ]"
+
 gate_check "2+ custom visual components (multi-act variety)" \
   "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' ! -name 'constants.ts' | wc -l | tr -d ' ') -ge 2 ]"
 
 log ""
-log "Hard gates: $((9 - GATE_FAILS))/9 passed"
+log "Hard gates: $((10 - GATE_FAILS))/10 passed"
 
 if [ "$GATE_FAILS" -gt 0 ]; then
   log "⚠ $GATE_FAILS structural violation(s) — auto-fixing before critique"
@@ -1596,6 +1575,7 @@ Fix instructions per rule:
 - 3+ camera shots: define at least 3 distinct camera positions using focus()/fitRect() for dynamic movement
 - Themed CE: import ceThemes from '@/lib/video', call createThemedCE with a theme (blurIn, clipCircle, glitch, etc.)
 - Custom component: the episode's core visual must be a separate .tsx file, not inline in VideoTemplate
+- 150+ lines: the custom visual components (excluding VideoTemplate.tsx and constants.ts) must total at least 150 lines. If under 150, the visual is too thin — add more animation states, more scene-driven behavior, more visual depth. Reference: EP8 SpongeCanvas (497 lines), EP9 HeatmapCanvas (321 lines).
 - 2+ custom components: each act needs its own visual centerpiece — one component for the whole episode means no visual variety. Build distinct visuals for different narrative acts.
 
 Read ${EP_PATH}/ files and fix each violation. Then run: npx tsc --noEmit --project client/tsconfig.json
@@ -1617,7 +1597,7 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 
 QUALITY_THRESHOLD=75
-MAX_ITERATIONS=2
+MAX_ITERATIONS=3
 ITERATION=0
 
 if [ "$SKIP_CRITIQUE" = "true" ]; then
@@ -1665,7 +1645,7 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
     fi
   fi
 
-  # ── PARALLEL CRITIQUE (2 agents: quality + storytelling) ────────────────
+  # ── MULTI-PERSONA PARALLEL CRITIQUE (3 agents) ──────────────────────────
 
   SHARED_CRITIQUE_CONTEXT=$(cat <<CONTEXT_END
 Episode ${EP_NUM} (${TOPIC}) at ${EP_PATH}/
@@ -1688,175 +1668,162 @@ ${SCREENSHOT_NOTE}
 CONTEXT_END
 )
 
-  # ── Critic A: Quality Reviewer (visual polish + technical accuracy) ─────
-  PROMPT_CRITIC_QUALITY=$(cat <<PROMPT_END
-You are a QUALITY REVIEWER for an animated Bitcoin explainer. You evaluate visual polish, technical accuracy, and code correctness. Be precise and brutally honest.
+  # ── Critic A: Visual Designer ───────────────────────────────────────────
+  PROMPT_CRITIC_VISUAL=$(cat <<PROMPT_END
+You are a VISUAL DESIGNER reviewing an animated episode. You care about aesthetics, motion design, and visual polish. Be brutally honest.
 
 ${SHARED_CRITIQUE_CONTEXT}
 
-Also read:
-- .auto-episode/ep${EP_NUM}-${SLUG}/research.md (the technical research — check factual accuracy against this)
-- .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa/report.md (automated positioning report, if it exists)
+YOUR FOCUS — score each 1-10:
 
-YOUR FOCUS — score each category:
+1. VISUAL ORIGINALITY — looks different from all episodes in the Episode Registry? Custom signature visual? Or is it another CE fade-in episode?
+2. ANIMATION VARIETY — does the core visual use GSAP, SVG morph, Canvas, CSS keyframes? CE should only be for text/labels. Score 1 if everything uses CE.
+3. CAMERA MOVEMENT — does the episode have dynamic, non-linear camera movement? Zoom in/out (scale range 0.3-2.5+)? Backtrack to earlier zones? Vertical pans? Does the FINAL SCENE zoom out to reveal the entire canvas as a visual summary? Static or left-to-right-only = low score.
+4. CUSTOM PALETTE — EP_COLORS and EP_SPRINGS in constants.ts? ${PALETTE_CRITIQUE}
+5. VISUAL POLISH — if screenshots available, READ THEM: layout balance, spacing, color harmony, text readability, professional quality. Would this stand up next to 3Blue1Brown?
+6. SIGNATURE VISUAL CRAFT — READ the core visual component code and evaluate:
+   a) Does the visual TEACH the concept? Does looking at it help you understand the idea, or is it just decorative? A viewer watching on mute should understand the core concept from the animation alone. Score 1-3 if the visual doesn't help understanding, 7-10 if it makes the concept click.
+   b) Does it represent something REAL (a data structure, a process, a computation)? Or is it just styled divs with transitions? Score 1-3 if purely decorative, 4-6 if basic representation, 7-10 if it genuinely models the concept.
+   c) Does it feel ALIVE between scene transitions (ambient motion, pulse, shimmer — even subtle)? -1 if completely static between scenes.
+   d) Does it EVOLVE across scenes (not just appear/disappear)? -1 if single state throughout.
+   e) Is the complexity APPROPRIATE for the concept? A simple concept with a 500-line overbuilt visual is just as bad as a complex concept with a 50-line underbuilt one. Score based on whether the visual's complexity matches what the concept needs.
+BONUS: If characters (Alice/Bob) are used — do they have varied emotions across scenes? Are gestures used meaningfully (not all 'none')? Do they look at each other during dialogue? Are speech bubbles readable and short? Do characters add personality or feel like decoration?
 
-## A. VISUAL POLISH (15 points)
-Score 1-15 holistically:
-- If screenshots available, READ THEM: layout balance, spacing, color harmony, text readability
-- Does it look professional? Would it stand up next to 3Blue1Brown?
-- Does the signature visual TEACH the concept (not just decorate)? Does it represent something real?
-- Does it feel alive between scenes (ambient motion, pulse, shimmer)?
-- Does it evolve across scenes (not just appear/disappear)?
-- If characters (Alice/Bob) appear: varied emotions? Meaningful gestures? Natural dialogue?
-NOTE: Do NOT check whether GSAP/Camera/EP_COLORS exist — the automated hard gates already verify structural compliance. Focus on SUBJECTIVE quality that automation can't judge.
+OVERALL VISUAL SCORE: X/60
 
-## B. TECHNICAL ACCURACY (10 points)
-Score 1-10:
-- Are Bitcoin/crypto concepts explained correctly? Compare against the research document.
-- Are real values used (actual hashes, real addresses, computed outputs) or placeholders?
-- Any factual errors that would mislead a developer viewer?
+LIST specific visual issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE
 
-## C. CAMERA & MOTION (15 points)
-Score 1-15:
-- Does the camera journey feel CINEMATIC? Varied scales (0.3-2.5+), backtracking, vertical pans?
-- Does the final scene reveal the entire canvas?
-- Is the motion personality appropriate for the topic (aggressive for security, precise for math, flowing for network)?
-- Do GSAP timelines choreograph multi-element sequences, or is it just basic fade-ins?
-- ${PALETTE_CRITIQUE}
+Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-visual-iter${ITERATION}.md
 
-OVERALL QUALITY SCORE: X/40
-
-LIST specific issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE.
-For each issue, note which category (visual/accuracy/motion) it falls under.
-
-Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-quality-iter${ITERATION}.md
-
-At the very end, output EXACTLY: QUALITY_SCORE: <number>
+At the very end, output EXACTLY: VISUAL_SCORE: <number>
 PROMPT_END
 )
 
-  # ── Critic B: Storytelling Reviewer (narrative, teaching, emotional arc) ─
-  PROMPT_CRITIC_STORY=$(cat <<PROMPT_END
-You are a DEVELOPER WHO KNOWS BASIC BITCOIN but NOT the specific topic of this episode. You are the TARGET AUDIENCE watching this for the first time. Your job is to evaluate the STORYTELLING — does this episode teach effectively and hold attention?
+  # ── Critic B: Technical Reviewer ────────────────────────────────────────
+  PROMPT_CRITIC_TECH=$(cat <<PROMPT_END
+You are a TECHNICAL REVIEWER for a Bitcoin explainer video. You care about accuracy, code quality, and positioning correctness. Be precise.
 
 ${SHARED_CRITIQUE_CONTEXT}
 
-YOUR FOCUS — score each category:
+Also read: .auto-episode/ep${EP_NUM}-${SLUG}/research.md (the technical research)
 
-## A. HOOK & OPENING (12 points)
-Score 1-12:
-- Does scene 1 grab attention? Is the title compelling?
-- Does scene 2 start from FAMILIAR GROUND, or does it throw jargon at you?
-- Would you keep watching after the first 10 seconds, or click away?
-- Is there a clear promise of what you'll learn?
+YOUR FOCUS — score each 1-10:
 
-## B. TEACHING FLOW (12 points)
-Score 1-12:
-- One idea per scene? Progressive reveal? Or does it dump information?
-- Can you follow the logic from scene to scene without re-reading?
-- Does each scene BUILD on the previous one, or do they feel disconnected?
-- Are transitions between concepts smooth ("Now that we know X, let's see Y") or jarring?
-- Does the visual actually HELP you understand, or is it just decoration while text does the teaching?
+1. TECHNICAL ACCURACY — are Bitcoin/crypto concepts explained correctly? Real values used? Any factual errors?
+2. CODE QUALITY — compiles? (TS errors: ${TYPECHECK_ERRORS:-none}) Clean structure? No dead code?
+3. POSITIONING ACCURACY — check the visual QA report at .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa/report.md (if it exists).
+   - Are there any FAIL issues (off-screen elements)? Flag as MUST FIX.
+   - Are there WARN issues (clipped elements)? Flag significant ones as SHOULD FIX.
+   - If no report exists, run: node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa
+   - Also check: visual components inside Camera should NOT use sceneRange() (breaks backtracking + final reveal). Any empty scenes?
+   Score 1 if report has failures. Score 10 if report shows all scenes pass.
 
-## C. TEXT DISCIPLINE (12 points)
-Score 1-12:
-- One sentence per scene heading? Max ~15 words per text element?
-- Or are there walls of text that would fly by in a video?
-- Are real values used ("01100010...") instead of vague descriptions ("the input gets converted")?
-- Progressive reveal within scenes — staggered appearance, not everything at once?
+OVERALL TECHNICAL SCORE: X/30
 
-## D. EMOTIONAL ARC (12 points)
-Score 1-12:
-- Do you feel the arc: curiosity → confusion → partial clarity → AHA → satisfaction?
-- Is there a clear HIGHLIGHT SCENE — a moment that visually breaks the pattern for the key insight?
-- Where does the "wait, really?!" moment land? Is it earned through buildup?
-- Is there a "why is this a big deal?" beat that frames the significance?
+LIST specific technical issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE
 
-## E. COMPLETENESS & IMPACT (12 points)
-Score 1-12:
-- After watching, do you understand the concept well enough to explain it to someone?
-- Does the episode leave you wanting to learn more (about the next topic)?
-- Is there a satisfying conclusion that ties everything together?
-- Does the CTA scene feel natural or forced?
-- Would you share this with a developer friend? Why or why not?
+Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-tech-iter${ITERATION}.md
 
-SCENE-BY-SCENE WALKTHROUGH — narrate your experience as a first-time viewer:
-- Scene 1: "I see... this makes me feel..."
+At the very end, output EXACTLY: TECHNICAL_SCORE: <number>
+PROMPT_END
+)
+
+  # ── Critic C: Audience Proxy ────────────────────────────────────────────
+  PROMPT_CRITIC_AUDIENCE=$(cat <<PROMPT_END
+You are a DEVELOPER WHO KNOWS BASIC BITCOIN but NOT the specific topic of this episode. You are the TARGET AUDIENCE. You're watching this for the first time.
+
+${SHARED_CRITIQUE_CONTEXT}
+
+YOUR FOCUS — evaluate as a first-time viewer. Score each 1-10:
+
+1. HOOK — does the opening grab attention? Does scene 2 start from familiar ground, or does it throw jargon at you?
+2. TEACHING FLOW — one idea per scene? Progressive reveal? Or does it dump information? Can you follow the logic from scene to scene?
+3. TEXT RULES — one sentence per heading? Max ~15 words? Or are there walls of text that would fly by in a video?
+4. EMOTIONAL ARC — do you feel curiosity → confusion → aha → satisfaction? Is there a clear highlight/aha scene? Where does the "wait, really?!" moment land?
+5. THE "SO WHAT?" TEST — after watching, do you understand WHY this matters? Is there a "why is this a big deal?" beat?
+
+Walk through the episode scene by scene and narrate your experience as a viewer:
+- Scene 1: "I see... this makes me think..."
 - Scene 2: "OK so this is about... I'm curious because..."
-- (continue for every scene)
+- (etc.)
 - Flag any scene where you'd lose interest, get confused, or feel talked down to.
-- Flag any scene where you feel a concept was skipped or assumed.
-- If characters appear: Does the dialogue feel like a real conversation? Does it help you understand or slow things down?
+- If characters appear: Do Alice & Bob feel like they're having a real conversation, or is it forced? Does the dialogue help you understand, or does it slow things down? Are their emotions appropriate for the moment?
 
-OVERALL STORYTELLING SCORE: X/60
+OVERALL AUDIENCE SCORE: X/20 (weighted: hook 4pts, teaching 4pts, text 4pts, arc 4pts, so-what 4pts)
 
-LIST specific storytelling issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE.
-For each issue, note which category (hook/teaching/text/arc/impact) it falls under.
+LIST specific audience issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE
 
-Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-story-iter${ITERATION}.md
+Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-audience-iter${ITERATION}.md
 
-At the very end, output EXACTLY: STORY_SCORE: <number>
+At the very end, output EXACTLY: AUDIENCE_SCORE: <number>
 PROMPT_END
 )
 
-  # ── Launch 2 critics in parallel ────────────────────────────────────────
-  log "Launching 2 parallel critics (quality + storytelling)..."
+  # ── Launch all 3 critics in parallel ────────────────────────────────────
+  log "Launching 3 parallel critics..."
 
-  bg_claude "critique-quality-iter${ITERATION}" "$PROMPT_CRITIC_QUALITY" "$PLANNER_TOOLS"
-  PID_CQ=$!
-  bg_claude "critique-story-iter${ITERATION}" "$PROMPT_CRITIC_STORY" "$PLANNER_TOOLS"
-  PID_CS=$!
+  bg_claude "critique-visual-iter${ITERATION}" "$PROMPT_CRITIC_VISUAL" "$PLANNER_TOOLS"
+  PID_CV=$!
+  bg_claude "critique-tech-iter${ITERATION}" "$PROMPT_CRITIC_TECH" "$PLANNER_TOOLS"
+  PID_CT=$!
+  bg_claude "critique-audience-iter${ITERATION}" "$PROMPT_CRITIC_AUDIENCE" "$PLANNER_TOOLS"
+  PID_CA=$!
 
-  wait_group "Parallel critique (2 personas)" "$PID_CQ" "$PID_CS"
-  CRITIQUE_COST=$(sum_costs "critique-quality-iter${ITERATION}" "critique-story-iter${ITERATION}")
+  wait_group "Parallel critique (3 personas)" "$PID_CV" "$PID_CT" "$PID_CA"
+  CRITIQUE_COST=$(sum_costs "critique-visual-iter${ITERATION}" "critique-tech-iter${ITERATION}" "critique-audience-iter${ITERATION}")
   log "Critique cost: \$${CRITIQUE_COST}"
 
   # ── Merge critiques ─────────────────────────────────────────────────────
 
-  CRIT_QUALITY=$(read_artifact "critique-quality-iter${ITERATION}.md")
-  CRIT_STORY=$(read_artifact "critique-story-iter${ITERATION}.md")
+  CRIT_VISUAL=$(read_artifact "critique-visual-iter${ITERATION}.md")
+  CRIT_TECH=$(read_artifact "critique-tech-iter${ITERATION}.md")
+  CRIT_AUDIENCE=$(read_artifact "critique-audience-iter${ITERATION}.md")
 
   run_phase "critique-merge-iter${ITERATION}" "$(cat <<PROMPT_END
-You are merging critiques from two specialist reviewers into a single prioritized critique.
+You are merging critiques from three specialist reviewers into a single prioritized critique.
 
----QUALITY REVIEWER CRITIQUE---
-${CRIT_QUALITY}
----END QUALITY---
+---VISUAL DESIGNER CRITIQUE---
+${CRIT_VISUAL}
+---END VISUAL---
 
----STORYTELLING REVIEWER CRITIQUE---
-${CRIT_STORY}
----END STORYTELLING---
+---TECHNICAL REVIEWER CRITIQUE---
+${CRIT_TECH}
+---END TECHNICAL---
+
+---AUDIENCE PROXY CRITIQUE---
+${CRIT_AUDIENCE}
+---END AUDIENCE---
 
 MERGE RULES:
-1. Extract scores: QUALITY_SCORE (out of 40) + STORY_SCORE (out of 60) = TOTAL/100
+1. Extract scores: VISUAL_SCORE (out of 60) + TECHNICAL_SCORE (out of 30) + AUDIENCE_SCORE (out of 20) = RAW TOTAL/110. Then normalize: TOTAL = round(RAW * 100 / 110) to get a score out of 100.
 2. If a score line is missing, estimate based on the critique content
 3. Consolidate all issues into a single list, removing duplicates
 4. When critics disagree, prioritize: MUST FIX issues from ANY critic stay MUST FIX
 5. Sort final issues: MUST FIX first, then SHOULD FIX, then NICE TO HAVE
 6. Note which persona flagged each issue (helps the fix planner understand the concern)
-7. The storytelling score carries MORE WEIGHT — a technically polished but poorly taught episode is worse than a rough but well-taught one
 
 Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-iter${ITERATION}.md
 
 Format:
 ## Scores
-- Quality (visual + accuracy + motion): X/40 (from quality reviewer)
-- Storytelling (hook + teaching + text + arc + impact): X/60 (from storytelling reviewer)
-- **TOTAL: X/100**
+- Visual Design: X/60 (from visual critic — includes signature visual depth)
+- Technical Quality: X/30 (from tech critic)
+- Audience Experience: X/20 (from audience proxy)
+- **TOTAL: X/100** (normalized from raw X/110)
 
 ## Consolidated Issues
 
 ### MUST FIX
-- [issue] (flagged by: quality/storytelling) — category: [specific sub-category]
+- [issue] (flagged by: visual/tech/audience)
 
 ### SHOULD FIX
-- [issue] (flagged by: quality/storytelling)
+- [issue] (flagged by: visual/tech/audience)
 
 ### NICE TO HAVE
-- [issue] (flagged by: quality/storytelling)
+- [issue] (flagged by: visual/tech/audience)
 
-## Storytelling Walkthrough Summary
-[Key moments from the storytelling reviewer's scene-by-scene narration — where did they get confused, lose interest, or feel the aha moment?]
+## Audience Walkthrough Summary
+[Key moments from the audience proxy's scene-by-scene narration — where did they get confused or lose interest?]
 
 At the very end, output EXACTLY this line (machine-parsed):
 QUALITY_SCORE: <total number>
