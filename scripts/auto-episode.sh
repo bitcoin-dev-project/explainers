@@ -701,15 +701,20 @@ TECHNIQUE SELECTION — pick the RIGHT tool for the concept:
 - **Framer Motion morph()** — best for declarative state transitions: element moves from position A to B across scenes. Good for layout changes, not for continuous simulation.
 - **Combine techniques.** The best episodes layer multiple: Canvas 2D core + CSS ambient loops + GSAP for supporting element choreography.
 
-THE QUALITY BAR — what makes a signature visual memorable:
-1. It has an UNDERLYING MODEL — not just styled divs that animate. A particle simulation, a mathematical curve, a grid with computed values, a physics engine. The model drives the visual, not hardcoded keyframes.
-2. It has CONTINUOUS LIFE — something is always moving, even between scene transitions. Brownian motion, ambient shimmer, pulsing glow. The scene feels alive, not frozen between state changes.
-3. It has MULTIPLE MODES/STATES — the same visual behaves differently across scenes. A sponge tank that absorbs, permutes, squeezes, bounces attacks. A heatmap that fills linearly, then quadratically, then gets capped. Mode changes create drama.
-4. It has LAYERED EFFECTS — not one flat animation but depth: glow underneath + core element + highlight on top. Gradients, shadows, bloom, caustics.
-5. It's 200+ lines of code — a signature visual that's under 100 lines is probably too simple. The best ones (SpongeCanvas, HeatmapCanvas, UTXOHashmap) are 300-500 lines.
+THE QUALITY PRINCIPLE — teaching clarity comes first:
+The visual exists to make the concept CLICK, not to impress with complexity. Sometimes a clean, minimal GSAP sequence teaches better than a 400-line Canvas simulation. Let the CONCEPT dictate the complexity. A simple concept (fencepost error) needs a simple visual. A complex concept (sponge construction) justifies a complex simulation.
+
+The sweet spot: as simple as the concept allows, but with enough craft to feel alive and purposeful. Use these as quality SIGNALS, not rigid rules:
+1. UNDERLYING MODEL — the visual should represent something real (a data structure, a process, a computation). The model can be simple — a Merkle tree growing nodes, a UTXO set with insertions, blocks chaining together. It just shouldn't be purely decorative shapes.
+2. CONTINUOUS LIFE — something should feel alive between scene transitions. Can be subtle — a gentle CSS pulse, a slow gradient shift. Not everything needs a 60fps particle system.
+3. MULTIPLE MODES/STATES — the visual should evolve across scenes, not stay static. But "evolve" can mean a clean GSAP choreography adding elements step by step.
+4. LAYERED RENDERING — some depth (subtle glow, shadow, gradient) goes a long way. But clean and minimal beats cluttered and overproduced.
+5. COMPLEXITY MATCHES CONCEPT — don't force 500 lines when 150 teaches it better. But don't settle for styled divs with fade-in when the concept deserves more.
+
+Reference: EP8 SpongeCanvas (497 lines, Canvas 2D) and EP9 HeatmapCanvas (321 lines, Canvas 2D) are the high end — justified by their concepts. Not every episode needs this level, but no episode should be just CE fade-ins on styled divs.
 
 For your chosen concept, detail:
-a) THE SIGNATURE VISUAL — the ONE custom animation that makes this episode instantly recognizable. Describe: what rendering technique? What's the underlying model? What modes/states does it have across scenes? What makes it feel alive between transitions?
+a) THE SIGNATURE VISUAL — the ONE custom animation that makes this episode instantly recognizable. Describe: what rendering technique and WHY that technique fits this concept? What does the visual represent? How does it evolve across scenes?
 b) COLOR PALETTE — define EP_COLORS following the color mode above
 c) LAYOUT PATTERN — NOT centered-stack-with-heading — what serves THIS content?
 d) ANIMATION PERSONALITY — spring configs, timing, motion style that matches the topic
@@ -723,7 +728,7 @@ Rate your chosen concept:
 - How naturally it fits the topic (1-10)
 - Visual wow factor (1-10)
 - Feasibility in React + Framer Motion (1-10)
-- Underlying model depth (1-10): does the core visual have a real model (physics, math, data) driving it, or is it just styled divs with transitions?
+- Teaching clarity (1-10): does the visual make the concept CLICK, or does it look cool but distract from understanding?
 
 Save the full creative brief to .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
 PROMPT_END
@@ -1121,13 +1126,13 @@ IMPORTANT:
 - Do NOT use DiagramBox, FlowRow, or shared library components as the core visual
 - Import CE from @/lib/video ONLY for supporting text/labels, not the core animation
 
-SIGNATURE VISUAL QUALITY FLOOR — the core visual component must have:
-- An UNDERLYING MODEL that drives the animation (physics sim, math curve, data grid, state machine) — not just hardcoded CSS transforms on styled divs
-- CONTINUOUS LIFE — ambient motion even between scene changes (Brownian drift, shimmer, pulse). Use requestAnimationFrame for Canvas 2D, or CSS @keyframes for ambient loops
-- MULTIPLE MODES — the visual should behave differently across scenes (e.g., idle → active → climax → resolution), not just appear/disappear
-- LAYERED RENDERING — depth through glow + core + highlight layers, gradients, shadows. Flat single-layer elements look cheap
-- SUBSTANTIAL COMPLEXITY — aim for 200-500 lines. Under 100 lines usually means the visual is too simple to carry the episode
-Reference: EP8's SpongeCanvas.tsx (497 lines, Canvas 2D particle physics, 5 modes) and EP9's HeatmapCanvas.tsx (321 lines, Canvas 2D grid, 3 fill modes with heat color ramp) set the quality bar.
+SIGNATURE VISUAL QUALITY — teaching clarity is the #1 priority. The visual exists to make the concept click. Sometimes minimal is better than complex. Let the concept dictate the complexity. But the visual should still feel crafted and alive:
+- It should REPRESENT something real (a data structure, a process, a computation) — not just decorative shapes
+- It should feel ALIVE between scene transitions — even a subtle CSS pulse or gradient shift counts
+- It should EVOLVE across scenes — not stay static the whole episode
+- It should have some DEPTH — subtle glow, shadow, or gradient. Clean and minimal beats cluttered, but flat single-layer elements look cheap
+- COMPLEXITY should match the concept — a simple concept needs a simple visual. A complex concept justifies a simulation. Don't force 500 lines when 150 teaches it better.
+Reference: EP8's SpongeCanvas.tsx (497 lines) and EP9's HeatmapCanvas.tsx (321 lines) are the high end. Not every episode needs this — but every episode should be more than styled divs with fade-in.
 - Import { Camera, focus, fitRect } from @/lib/video for layout — place content at zone positions on the canvas, Camera handles viewport movement
 - All visual components stay MOUNTED inside Camera at all times — do NOT use sceneRange() to unmount them. This enables backtracking and the final canvas reveal. Leave 20-30vw gaps between zones so neighbors don't bleed into frame.
 - If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE.md for the full props API (emotions, gestures, lookAt, speech bubbles).
@@ -1364,14 +1369,11 @@ gate_check "Themed CE used (createThemedCE or ceThemes)" \
 gate_check "Has custom visual component (not just VideoTemplate)" \
   "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' | wc -l | tr -d ' ') -ge 1 ]"
 
-gate_check "Signature visual has substantial complexity (150+ lines)" \
-  "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' ! -name 'constants.ts' -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print \$1}') -ge 150 ]"
-
 gate_check "2+ custom visual components (multi-act variety)" \
   "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' ! -name 'constants.ts' | wc -l | tr -d ' ') -ge 2 ]"
 
 log ""
-log "Hard gates: $((10 - GATE_FAILS))/10 passed"
+log "Hard gates: $((9 - GATE_FAILS))/9 passed"
 
 if [ "$GATE_FAILS" -gt 0 ]; then
   log "⚠ $GATE_FAILS structural violation(s) — auto-fixing before critique"
@@ -1392,7 +1394,6 @@ Fix instructions per rule:
 - 3+ camera shots: define at least 3 distinct camera positions using focus()/fitRect() for dynamic movement
 - Themed CE: import ceThemes from '@/lib/video', call createThemedCE with a theme (blurIn, clipCircle, glitch, etc.)
 - Custom component: the episode's core visual must be a separate .tsx file, not inline in VideoTemplate
-- Signature visual 150+ lines: the core visual is too simple — add an underlying model (physics, math, data), multiple modes/states, layered rendering (glow + core + highlight), and ambient motion. Reference EP8 SpongeCanvas.tsx (497 lines) and EP9 HeatmapCanvas.tsx (321 lines) for the quality bar.
 - 2+ custom components: each act needs its own visual centerpiece — one component for the whole episode means no visual variety. Build distinct visuals for different narrative acts.
 
 Read ${EP_PATH}/ files and fix each violation. Then run: npx tsc --noEmit --project client/tsconfig.json
@@ -1490,13 +1491,12 @@ YOUR FOCUS — score each 1-10:
 3. CAMERA MOVEMENT — does the episode have dynamic, non-linear camera movement? Zoom in/out (scale range 0.3-2.5+)? Backtrack to earlier zones? Vertical pans? Does the FINAL SCENE zoom out to reveal the entire canvas as a visual summary? Static or left-to-right-only = low score.
 4. CUSTOM PALETTE — EP_COLORS and EP_SPRINGS in constants.ts? ${PALETTE_CRITIQUE}
 5. VISUAL POLISH — if screenshots available, READ THEM: layout balance, spacing, color harmony, text readability, professional quality. Would this stand up next to 3Blue1Brown?
-6. SIGNATURE VISUAL DEPTH — READ the core visual component code and evaluate:
-   a) Does it have an UNDERLYING MODEL (physics simulation, math computation, data-driven grid, state machine)? Or is it just styled divs with Framer Motion transitions? Score 1-3 if no model, 4-6 if basic state machine, 7-10 if real simulation/computation.
-   b) Does it have CONTINUOUS LIFE (ambient motion between scene changes — Brownian drift, shimmer, requestAnimationFrame loop)? Or does it freeze between transitions? -2 if static between scenes.
-   c) Does it have MULTIPLE MODES that change behavior across scenes (not just visibility on/off)? -2 if single mode throughout.
-   d) Does it have LAYERED RENDERING (glow + core + highlight, gradients, shadows, bloom)? -1 if flat/single-layer.
-   e) Is the component 200+ lines? Under 100 lines is almost certainly too simple to carry an episode.
-   Reference: EP8 SpongeCanvas.tsx (Canvas 2D particle physics, 5 modes, 497 lines) and EP9 HeatmapCanvas.tsx (Canvas 2D heatmap, 3 modes, 321 lines) are the quality bar.
+6. SIGNATURE VISUAL CRAFT — READ the core visual component code and evaluate:
+   a) Does the visual TEACH the concept? Does looking at it help you understand the idea, or is it just decorative? Teaching clarity > visual complexity. Score 1-3 if the visual doesn't help understanding, 7-10 if it makes the concept click.
+   b) Does it represent something REAL (a data structure, a process, a computation)? Or is it just styled divs with transitions? Score 1-3 if purely decorative, 4-6 if basic representation, 7-10 if it genuinely models the concept.
+   c) Does it feel ALIVE between scene transitions (ambient motion, pulse, shimmer — even subtle)? -1 if completely static between scenes.
+   d) Does it EVOLVE across scenes (not just appear/disappear)? -1 if single state throughout.
+   e) Is the complexity APPROPRIATE for the concept? A simple concept with a 500-line overbuilt visual is just as bad as a complex concept with a 50-line underbuilt one. Score based on whether the visual's complexity matches what the concept needs.
 BONUS: If characters (Alice/Bob) are used — do they have varied emotions across scenes? Are gestures used meaningfully (not all 'none')? Do they look at each other during dialogue? Are speech bubbles readable and short? Do characters add personality or feel like decoration?
 
 OVERALL VISUAL SCORE: X/60
