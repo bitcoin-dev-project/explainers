@@ -124,6 +124,8 @@ node scripts/record.mjs
 
 Resumable: re-run the same command after a crash and it picks up from the last completed phase.
 
+> **Full command reference** — all flags, all scripts, all workflows: **[USAGE.md](USAGE.md)**
+
 ## Requirements
 
 - Node.js 18+
