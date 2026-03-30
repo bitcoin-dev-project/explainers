@@ -114,25 +114,25 @@ import { Camera, focus, fitRect } from '@/lib/video';
 
 const ZONES = [
   { label: 'A', x: 0, y: 0, w: 90, h: 80, color: '#3b82f6' },
-  { label: 'B', x: 110, y: 0, w: 80, h: 80, color: '#ef4444' },
-  { label: 'C', x: 110, y: 100, w: 80, h: 70, color: '#22c55e' },
+  { label: 'B', x: 120, y: 0, w: 80, h: 80, color: '#ef4444' },  // 30vw gap from A
+  { label: 'C', x: 120, y: 110, w: 80, h: 70, color: '#22c55e' }, // 30vh gap from B
 ];
 
 const SHOTS = {
   0: { x: 0, y: 0, scale: 1 },       // Zone A wide
   2: focus(45, 30, 2.0),               // Zoom into Zone A detail
   4: { x: 0, y: 0, scale: 1 },        // Pull back
-  5: focus(150, 40, 1.2),              // Pan to Zone B
-  7: focus(150, 135, 1.5),             // Pan DOWN to Zone C + zoom
-  9: focus(150, 40, 1.0),              // BACKTRACK to Zone B
-  11: fitRect(0, 0, 200, 180),         // FINAL: reveal entire canvas
+  5: focus(160, 40, 1.2),              // Pan to Zone B
+  7: focus(160, 145, 1.5),             // Pan DOWN to Zone C + zoom
+  9: focus(160, 40, 1.0),              // BACKTRACK to Zone B
+  11: fitRect(0, 0, 210, 190),         // FINAL: reveal entire canvas
 };
 
 <Camera scene={s} shots={SHOTS} width="250vw" height="200vh" zones={ZONES}>
   {/* All content stays mounted — no sceneRange! Needed for backtracking + final reveal */}
   <TitleVisual style={{ position: 'absolute', left: '5vw', top: '5vh' }} scene={s} />
-  <CoreVisual style={{ position: 'absolute', left: '115vw', top: '5vh' }} scene={s} />
-  <DetailVisual style={{ position: 'absolute', left: '115vw', top: '105vh' }} scene={s} />
+  <CoreVisual style={{ position: 'absolute', left: '125vw', top: '5vh' }} scene={s} />
+  <DetailVisual style={{ position: 'absolute', left: '125vw', top: '115vh' }} scene={s} />
 </Camera>
 
 {/* Text captions — OUTSIDE Camera, in screen space (always visible) */}
@@ -247,10 +247,10 @@ export default function VideoTemplate() {
         <BlockStrip scene={s} style={{ position: 'absolute', left: '5vw', top: '10vh' }} />
 
         {/* Zone B: Core concept (camera visits in scenes 5-9 AND backtracks in 16) */}
-        <UTXOHashmap scene={s} style={{ position: 'absolute', left: '120vw', top: '10vh' }} />
+        <UTXOHashmap scene={s} style={{ position: 'absolute', left: '130vw', top: '10vh' }} />
 
         {/* Zone C: Resolution */}
-        <HexRibbon scene={s} style={{ position: 'absolute', left: '240vw', top: '10vh' }} />
+        <HexRibbon scene={s} style={{ position: 'absolute', left: '260vw', top: '10vh' }} />
       </Camera>
 
       {/* Text captions in screen space (outside Camera) */}

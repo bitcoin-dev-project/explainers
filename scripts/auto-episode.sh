@@ -909,21 +909,22 @@ import { Camera, focus, fitRect } from '@/lib/video';
 
 const ZONES = [
   { label: 'A', x: 0, y: 0, w: 90, h: 80, color: '#EB5234' },
-  { label: 'B', x: 110, y: 0, w: 80, h: 80, color: '#396BEB' },
-  { label: 'C', x: 110, y: 100, w: 80, h: 70, color: '#0E9158' },
+  { label: 'B', x: 120, y: 0, w: 80, h: 80, color: '#396BEB' },  // 30vw gap
+  { label: 'C', x: 120, y: 110, w: 80, h: 70, color: '#0E9158' }, // 30vh gap
 ];
 
 const SHOTS = {
   0: { x: 0, y: 0, scale: 1 },           // Zone A: title
   2: focus(45, 30, 2.0),                   // Zoom into detail in Zone A
   4: { x: 0, y: 0, scale: 1 },            // Pull back
-  5: focus(150, 40, 1.2),                  // Pan to Zone B
-  7: focus(150, 135, 1.5),                 // Pan down to Zone C + zoom
-  9: focus(110, 40, 1.0),                  // Backtrack to Zone B
-  11: fitRect(0, 0, 200, 180),             // FINAL: reveal entire canvas
+  5: focus(160, 40, 1.2),                  // Pan to Zone B
+  7: focus(160, 145, 1.5),                 // Pan down to Zone C + zoom
+  9: focus(160, 40, 1.0),                  // Backtrack to Zone B
+  11: fitRect(0, 0, 210, 190),             // FINAL: reveal entire canvas
 };
 
-<Camera scene={s} shots={SHOTS} width="250vw" height="200vh" zones={ZONES}>
+{/* All content stays mounted — no sceneRange! Needed for backtracking + final reveal */}
+<Camera scene={s} shots={SHOTS} width="260vw" height="200vh" zones={ZONES}>
   {/* Zone A placeholder */}
   <div style={{ position: 'absolute', left: '5vw', top: '5vh', width: '80vw', height: '70vh',
     border: '3px dashed #EB5234', backgroundColor: 'rgba(235,82,52,0.1)',
@@ -933,7 +934,7 @@ const SHOTS = {
     Zone A — TitleScreen (scenes 0-4)
   </div>
   {/* Zone B placeholder */}
-  <div style={{ position: 'absolute', left: '115vw', top: '5vh', width: '70vw', height: '70vh',
+  <div style={{ position: 'absolute', left: '125vw', top: '5vh', width: '70vw', height: '70vh',
     border: '3px dashed #396BEB', backgroundColor: 'rgba(57,107,235,0.1)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     color: '#396BEB', fontSize: '2vw', fontFamily: 'var(--font-display)',
@@ -1070,6 +1071,7 @@ IMPORTANT:
 - Do NOT use DiagramBox, FlowRow, or shared library components as the core visual
 - Import CE from @/lib/video ONLY for supporting text/labels, not the core animation
 - Import { Camera, focus, fitRect } from @/lib/video for layout — place content at zone positions on the canvas, Camera handles viewport movement
+- All visual components stay MOUNTED inside Camera at all times — do NOT use sceneRange() to unmount them. This enables backtracking and the final canvas reveal. Leave 20-30vw gaps between zones so neighbors don't bleed into frame.
 - If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE.md for the full props API (emotions, gestures, lookAt, speech bubbles).
 
 Create the episode directory and component files:
@@ -1119,7 +1121,8 @@ CHECKLIST:
 5. Import EP_COLORS, EP_SPRINGS from the episode's constants.ts
 6. Define SCENE_DURATIONS based on storyboard timing
 7. Use morph() as the PRIMARY animation pattern — elements stay mounted and transform between scene states
-8. Use Camera for layout — wrap visual content in Camera with shots per scene using focus()/fitRect(). Place content at zone positions (absolute vw/vh). Pass zones prop for dev minimap. Text captions go OUTSIDE Camera in screen space. FINAL SCENE must fitRect() to reveal the entire canvas.
+8. Use Camera for layout — wrap visual content in Camera with shots per scene using focus()/fitRect(). Place content at zone positions (absolute vw/vh) with 20-30vw gaps between zones. Pass zones prop for dev minimap. Text captions go OUTSIDE Camera in screen space. FINAL SCENE must fitRect() to reveal the entire canvas.
+9. All visual components inside Camera stay MOUNTED — do NOT use sceneRange() to unmount them. The camera controls what's visible by panning/zooming. This enables backtracking to earlier zones and the final canvas reveal.
 9. Use CE ONLY for text captions and labels — NOT for the core visual
 10. Use GSAP (gsap.timeline()) for choreographed sequences where morph() isn't enough
 11. Progressive reveal in every scene — staggered delays
