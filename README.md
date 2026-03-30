@@ -10,6 +10,30 @@ One command in, finished episode out. Researched, storyboarded, animated, and qu
 
 ---
 
+## The Pipeline (what each phase does)
+
+Here's the full pipeline, **11 phases**, each producing a `.md` artifact that the next phase reads:
+
+| # | Phase | Who | What it does | Output |
+|---|-------|-----|-------------|--------|
+| 1 | **Research** (3 parallel) | 3 agents | Technical deep-dive, visual inspiration, narrative angle — all run simultaneously | `research-technical.md`, `research-visual.md`, `research-angle.md` |
+| 1b | **Research Merge** | Planner | Synthesizes the 3 reports into one document | `research-merged.md` |
+| 2 | **Director Research Review** | Planner | Reviews merged research, flags gaps, approves or requests more | review notes |
+| 3 | **Creative Vision** | Planner | Defines the episode's visual identity — palette, motion personality, signature visual, what makes it unique | `creative-vision.md` |
+| 4 | **Storyboard** | Planner | Scene-by-scene breakdown — what's on screen, what text, canvas zones, camera journey | `storyboard.md` |
+| 5 | **Director Storyboard Review** | Planner | Reviews storyboard against CLAUDE.md rules (text length, scene density, visual variety) | review notes |
+| 5.5 | **Motion Script** | Planner | Timestamped animation spec — exact delays, enter/exit times, spring configs per element | `motion-script.md` |
+| 5.7 | **Wireframe** | Executor | Builds a skeleton VideoTemplate with colored placeholder `<div>`s instead of real visuals. Camera zones + shots are real, but components are fake. 3s scene durations for fast clicking-through. | `VideoTemplate.tsx` (temporary) |
+| 5.7b | **Wireframe QA** | Executor | Runs Playwright screenshots + `visual-qa.mjs` on the wireframe to verify camera positions, zone visibility, nothing off-screen. Fixes issues before real build. | `visual-qa-wireframe/` |
+| 6 | **Build Components** | Executor | Builds the real custom visual components (the signature animations) | `*.tsx` component files |
+| 7 | **Build Template** | Executor | Replaces wireframe placeholders with real components, sets real scene durations | Final `VideoTemplate.tsx` |
+| 8 | **Visual QA** | Executor | Playwright screenshots of every scene at 1920x1080, automated position checks | `visual-qa-output/report.md` |
+| 8.5 | **Structural Hard Gates** | Automated | 9 grep-based checks (has Camera? has GSAP? has custom ECE theme? no bare CE? etc.) — must pass before critique | pass/fail |
+| 9 | **Critique** (3 parallel) | 3 agents | Visual designer, tech reviewer, audience proxy — each scores /100 | `critique-merged.md` |
+| 9b | **Score >= 75?** | Automated | If no → generate fix plan → rebuild → re-critique (up to 3 loops) | loop or proceed |
+| 10 | **Voiceover** (optional) | Executor | Generate transcript, ElevenLabs audio, sync durations | audio files + updated durations |
+| 11 | **Lessons Learned** | Planner | Extracts patterns/mistakes into a cross-episode log so future episodes avoid the same issues | `lessons-learned.md` |
+
 ## How It Works
 
 Two agent roles with **separated permissions** prevent any single agent from drifting off-course:
