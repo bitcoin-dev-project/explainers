@@ -648,14 +648,14 @@ Your job is to design the VISUAL CONCEPT that serves the director's story arc. D
 
 Also read:
 - Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
-- CLAUDE.md — especially Animation Toolkit, Stage/Act System, Episode Registry, and "Making Episodes That Don't Look Alike"
+- CLAUDE.md — especially Animation Toolkit, Camera System, Episode Registry, and "Making Episodes That Don't Look Alike"
 - DO NOT read old episode VideoTemplate.tsx files — they use outdated patterns
 
 RULES:
 - Do NOT repeat any visual approach from the Episode Registry in CLAUDE.md
 - Do NOT default to DiagramBox, FlowRow, or other shared library components for the core visual
 - The core visual MUST NOT use CE (CanvasElement). Use GSAP timeline, SVG path morphing, CSS keyframes, Canvas 2D, or morph()
-- Use the Stage/Act system for layout — each act gets its own Act component, Stage auto-pans between them
+- Use the Camera system for layout — place content in zones on a large canvas, Camera pans/zooms between them freely. The final scene MUST zoom out to reveal the entire canvas as a visual summary.
 - Define episode-specific EP_COLORS and EP_SPRINGS in constants.ts
 - The director already decided the teaching approach — your job is the visual execution
 
@@ -725,15 +725,16 @@ Mark scenes using the SIGNATURE VISUAL with [SIGNATURE].
 
 Use AS MANY SCENES as the topic needs. 15-25 scenes is typical.
 
-CRITICAL — ACT STRUCTURE:
-After the scene list, include an "Act Layout" section. Read the "Stage/Act System" section in CLAUDE.md. You MUST:
-1. Group scenes into Acts — each Act is a full-screen (100vw × 100vh) section
-2. Assign each scene to exactly one Act's \`scenes\` array
-3. For scenes that need within-Act zoom, specify the \`shots\` (scale, x%, y%)
-4. Note any overview scenes where all Acts should be visible simultaneously
-5. Content inside each Act uses normal layout (flex, grid, absolute within 100vw × 100vh) — NO manual canvas coordinates
+CRITICAL — CANVAS ZONES + CAMERA JOURNEY:
+After the scene list, include a "Canvas Layout" section. Read the "Camera System" section in CLAUDE.md. You MUST:
+1. Define CANVAS SIZE — how big is the world? (e.g., 400vw × 200vh). Size it to fit the content, no fixed limits.
+2. Define ZONES — named regions on the canvas where content lives (e.g., Zone A: 0-90vw, Zone B: 110-200vw, Zone C: 110-200vw y:110-200vh). Include gaps between zones.
+3. Plan the CAMERA JOURNEY — for each scene, specify what the camera does: zoom in, pull back, pan left/right/up/down, backtrack to an earlier zone. Use focus(cx, cy, scale) or fitRect(x, y, w, h) helpers.
+4. The camera journey MUST be NON-LINEAR — backtrack to earlier zones, vary zoom from 0.3 to 2.5+, pan vertically not just horizontally. NOT a left-to-right slideshow.
+5. The FINAL SCENE must zoom ALL the way out (scale 0.3-0.5) to reveal the ENTIRE canvas — showing all visuals from the episode as one connected picture. This is the visual summary/payoff.
+6. Pass \`zones\` to Camera for the dev minimap — each zone gets a label and color for visual verification.
 
-This prevents the #1 visual bug: content placed off-screen. Stage/Act makes it structurally impossible.
+This creates dynamic, cinematic camera movement. The dev minimap catches off-screen content during development.
 
 Save the storyboard to .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
 PROMPT_END
@@ -847,7 +848,7 @@ SCENE <N>: <name> (duration: <X>s)
 RULES:
 1. Every element gets a timestamp. No "then" or "after that" — use exact times.
 2. Specify the animation TECHNIQUE for each move: morph(), GSAP tl.from/tl.to, CE enter/exit, CSS @keyframes, spring config.
-3. Act transitions get their own timestamps: "Stage — auto-pan to Act 2 (spring stiffness 60)"
+3. Camera moves get their own timestamps: "Camera — pan to Zone B (spring stiffness 50, damping 22)" or "Camera — zoom into detail at (140vw, 30vh) scale 2.2"
 4. Mark the HIGHLIGHT SCENE's dramatic moment with ★ — this is where timing matters most.
 5. Include hold/breathing time at the end of each scene (1-2s minimum).
 6. For voiceover-synced episodes, mark where specific phrases align with visuals.
@@ -861,7 +862,7 @@ RULES:
 ALSO INCLUDE:
 - ## Persistent Elements (which elements stay mounted across multiple scenes and transform via morph)
 - ## Animation Library Assignments (which scenes use GSAP timeline, which use morph, which use CSS @keyframes)
-- ## Act Shots (which Acts have within-Act zoom shots, with scale/x%/y% values)
+- ## Camera Shots (per-scene camera positions — use focus(cx, cy, scale) or fitRect(x, y, w, h). Final scene = full canvas reveal at scale 0.3-0.5)
 - ## Character Choreography (if characters are used: which scenes have dialogue, character positions, emotion arcs across the episode)
 
 Save to .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md
@@ -882,61 +883,74 @@ if phase_done "wireframe"; then
 else
 
 run_phase "wireframe" "$(cat <<PROMPT_END
-You are building a WIREFRAME VERSION of episode ${EP_NUM}: ${TOPIC} — a skeleton layout that verifies the Act structure BEFORE the real visuals are built.
+You are building a WIREFRAME VERSION of episode ${EP_NUM}: ${TOPIC} — a skeleton layout that verifies the canvas zones and camera journey BEFORE the real visuals are built.
 
 Read these for context:
-- Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
+- Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md (especially the "Canvas Layout" section)
 - Motion script: .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md
-- CLAUDE.md — especially "Stage/Act System"
+- CLAUDE.md — especially "Camera System"
 
-YOUR JOB: Create a minimal VideoTemplate.tsx using Stage/Act that has:
-1. Stage wrapping all Acts
-2. One Act per section, with scenes assigned via the \`scenes\` prop
-3. Colored placeholder rectangles inside each Act (each Act is 100vw × 100vh — use normal layout)
+YOUR JOB: Create a minimal VideoTemplate.tsx using Camera that has:
+1. Camera wrapping all content on a large canvas (size from storyboard)
+2. Colored placeholder rectangles at each zone position (absolute positioning in vw/vh)
+3. Camera shots per scene using focus() or fitRect() helpers (NOT manual x/y math)
 4. SCENE_DURATIONS (use 3000ms per scene — fast iteration)
-5. ECE text placeholders for captions
+5. ECE text placeholders for captions (OUTSIDE Camera, in screen space)
+6. \`zones\` prop on Camera for the dev minimap
+7. FINAL SCENE must use fitRect() to zoom out and show the ENTIRE canvas
 
-This is NOT the real episode — it's a layout test. Each custom component is replaced by a colored <div> inside its Act.
+This is NOT the real episode — it's a camera journey test. Each custom component is replaced by a colored <div> at its zone position.
 
 Example wireframe:
 \`\`\`tsx
-import { Stage, Act } from '@/lib/video';
+import { Camera, focus, fitRect } from '@/lib/video';
 
-<Stage scene={s}>
-  <Act scenes={[0, 1, 2]}>
-    <div style={{
-      width: '100%', height: '100%',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      border: '3px dashed #EB5234',
-      color: '#EB5234', fontSize: '2vw', fontFamily: 'var(--font-display)',
-      backgroundColor: 'rgba(235, 82, 52, 0.1)',
-    }}>
-      TitleScreen (scenes 0-2)
-    </div>
-  </Act>
-  <Act scenes={[3, 4, 5]} shots={{ 4: { scale: 1.5, x: 30, y: 50 } }}>
-    <div style={{
-      width: '100%', height: '100%',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      border: '3px dashed #396BEB',
-      color: '#396BEB', fontSize: '2vw', fontFamily: 'var(--font-display)',
-      backgroundColor: 'rgba(57, 107, 235, 0.1)',
-    }}>
-      CoreVisual (scenes 3-5, zoom at scene 4)
-    </div>
-  </Act>
-</Stage>
+const ZONES = [
+  { label: 'A', x: 0, y: 0, w: 90, h: 80, color: '#EB5234' },
+  { label: 'B', x: 110, y: 0, w: 80, h: 80, color: '#396BEB' },
+  { label: 'C', x: 110, y: 100, w: 80, h: 70, color: '#0E9158' },
+];
+
+const SHOTS = {
+  0: { x: 0, y: 0, scale: 1 },           // Zone A: title
+  2: focus(45, 30, 2.0),                   // Zoom into detail in Zone A
+  4: { x: 0, y: 0, scale: 1 },            // Pull back
+  5: focus(150, 40, 1.2),                  // Pan to Zone B
+  7: focus(150, 135, 1.5),                 // Pan down to Zone C + zoom
+  9: focus(110, 40, 1.0),                  // Backtrack to Zone B
+  11: fitRect(0, 0, 200, 180),             // FINAL: reveal entire canvas
+};
+
+<Camera scene={s} shots={SHOTS} width="250vw" height="200vh" zones={ZONES}>
+  {/* Zone A placeholder */}
+  <div style={{ position: 'absolute', left: '5vw', top: '5vh', width: '80vw', height: '70vh',
+    border: '3px dashed #EB5234', backgroundColor: 'rgba(235,82,52,0.1)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: '#EB5234', fontSize: '2vw', fontFamily: 'var(--font-display)',
+  }}>
+    Zone A — TitleScreen (scenes 0-4)
+  </div>
+  {/* Zone B placeholder */}
+  <div style={{ position: 'absolute', left: '115vw', top: '5vh', width: '70vw', height: '70vh',
+    border: '3px dashed #396BEB', backgroundColor: 'rgba(57,107,235,0.1)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: '#396BEB', fontSize: '2vw', fontFamily: 'var(--font-display)',
+  }}>
+    Zone B — CoreVisual (scenes 5-6, 9-10)
+  </div>
+</Camera>
 \`\`\`
 
 STEPS:
-1. Create ${EP_PATH}/constants.ts with EP_COLORS and EP_SPRINGS from the creative brief
-2. Create ${EP_PATH}/VideoTemplate.tsx as the wireframe using Stage/Act
+1. Create ${EP_PATH}/constants.ts with EP_COLORS, EP_SPRINGS, and ZONES array from the storyboard
+2. Create ${EP_PATH}/VideoTemplate.tsx as the wireframe using Camera + focus()/fitRect()
 3. Register in client/src/App.tsx, client/src/pages/Home.tsx, client/src/episodes/index.ts
 4. Run npx tsc --noEmit --project client/tsconfig.json
 5. After the wireframe compiles, run: node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa-wireframe
    Fix any FAIL issues the tool reports before proceeding.
+6. Preview in browser — check the minimap (bottom-right corner) to verify camera journey covers all zones.
 
-The wireframe must compile and render. Stage/Act eliminates manual positioning math — content fills each Act's viewport naturally.
+The wireframe must compile and render. The dev minimap shows the viewport position on the canvas — use it to verify all zones are reachable and the final reveal shows everything.
 PROMPT_END
 )" --new-session --session-file "$BUILD_SESSION"
 fi
@@ -985,9 +999,10 @@ STEP 2: Read the report at .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa-wireframe
 - Read the screenshots to visually confirm
 
 STEP 3: Fix any issues found:
-- Content overflowing Act → adjust layout within the Act (it's 100vw × 100vh)
-- Wrong Act assignment → move content to the correct Act's scenes array
-- Within-Act zoom clipping → adjust shots scale/x/y percentages
+- Content off-screen → adjust the camera shot for that scene (use focus() or fitRect() to recompute)
+- Zone content too large → resize the zone or increase canvas size
+- Camera shot clipping content → adjust scale or position using focus(cx, cy, scale) helper
+- Check the dev minimap in browser — green viewport rect = good, red = extends past canvas
 
 STEP 4: Re-run the visual QA tool to confirm fixes:
   node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa-wireframe
@@ -996,7 +1011,7 @@ Repeat until all FAIL issues are resolved. Then run npx tsc --noEmit --project c
 
 Save findings to .auto-episode/ep${EP_NUM}-${SLUG}/wireframe-qa.md
 
-The wireframe layout must pass the visual QA tool before we build real components on top of it.
+The wireframe layout must pass the visual QA tool before we build real components on top of it. Verify the camera journey hits all zones and the final scene reveals the full canvas.
 PROMPT_END
 )" --session-file "$BUILD_SESSION"
 fi
@@ -1036,8 +1051,8 @@ Read these artifacts for full context:
 - Creative brief: .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
 - Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
 
-A wireframe version already exists at ${EP_PATH}/VideoTemplate.tsx with verified Stage/Act layout.
-Use the wireframe's Act structure as your foundation — replace placeholder boxes with real components inside each Act.
+A wireframe version already exists at ${EP_PATH}/VideoTemplate.tsx with verified Camera + zones layout.
+Use the wireframe's zone positions and camera shots as your foundation — replace placeholder boxes with real components at their zone positions.
 
 FOLLOW THE DIRECTOR'S BUILD PRIORITIES. Build the signature visual FIRST, then supporting components.
 
@@ -1052,7 +1067,7 @@ IMPORTANT:
 - Use viewport-relative units (vw, vh) for responsive 1920x1080 capture
 - Do NOT use DiagramBox, FlowRow, or shared library components as the core visual
 - Import CE from @/lib/video ONLY for supporting text/labels, not the core animation
-- Import { Stage, Act } from @/lib/video for layout (NOT Camera — use Stage/Act for new episodes)
+- Import { Camera, focus, fitRect } from @/lib/video for layout — place content at zone positions on the canvas, Camera handles viewport movement
 - If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE.md for the full props API (emotions, gestures, lookAt, speech bubbles).
 
 Create the episode directory and component files:
@@ -1095,14 +1110,14 @@ ${PAST_LESSONS_TEMPLATE}
 Using your custom components, build the complete single-canvas VideoTemplate following CLAUDE.md.
 
 CHECKLIST:
-1. Import useVideoPlayer, DevControls, morph, Stage, Act, createThemedCE, ceThemes from @/lib/video
+1. Import useVideoPlayer, DevControls, morph, Camera, focus, fitRect, createThemedCE, ceThemes from @/lib/video
 2. If the storyboard has CHARACTER scenes: also import { Character } from '@/lib/video'. Use <Character name="alice" emotion="explaining" gesture="point" lookAt="right" says="Speech text" position={{ x: '25%', y: '85%' }} size="8vw" />. Character props change per scene — use morph() or conditional rendering based on currentScene to update emotion/gesture/says per scene. Keep speech bubble text SHORT (max ~12 words).
 3. Create a themed CE: const ECE = createThemedCE(ceThemes.blurIn) — pick a theme that fits the episode mood (blurIn, clipCircle, glitch, scalePop, wipeRight, flip, rotateIn, etc). NEVER use bare CE with default fade-up.
 4. Import your custom components from the episode folder
 5. Import EP_COLORS, EP_SPRINGS from the episode's constants.ts
 6. Define SCENE_DURATIONS based on storyboard timing
 7. Use morph() as the PRIMARY animation pattern — elements stay mounted and transform between scene states
-8. Use Stage/Act for layout — wrap all content in Stage > Act components. Use Act shots prop for within-Act zoom.
+8. Use Camera for layout — wrap visual content in Camera with shots per scene using focus()/fitRect(). Place content at zone positions (absolute vw/vh). Pass zones prop for dev minimap. Text captions go OUTSIDE Camera in screen space. FINAL SCENE must fitRect() to reveal the entire canvas.
 9. Use CE ONLY for text captions and labels — NOT for the core visual
 10. Use GSAP (gsap.timeline()) for choreographed sequences where morph() isn't enough
 11. Progressive reveal in every scene — staggered delays
@@ -1110,9 +1125,11 @@ CHECKLIST:
 13. Background from EP_COLORS (NOT var(--color-bg-light) by default)
 
 POSITIONING:
-- Use Stage/Act system — each Act is 100vw × 100vh, content uses normal layout inside
-- Do NOT use Camera, focus(), fitRect(), or absolute canvas coordinates — Stage/Act handles all positioning
-- Do NOT write manual POSITION AUDIT comments — the automated visual QA tool (scripts/visual-qa.mjs) will verify positioning after build
+- Use Camera system — place content at zone positions on the canvas using absolute vw/vh coordinates
+- Use focus(cx, cy, scale) and fitRect(x, y, w, h) helpers to compute camera shots — NOT manual x/y math
+- Pass zones array to Camera for the dev minimap — verify in browser that all zones are reachable
+- Text captions (ECE) go OUTSIDE the Camera in screen space — they're always visible regardless of camera position
+- Do NOT write manual POSITION AUDIT comments — the automated visual QA tool + dev minimap verify positioning
 
 ALSO:
 - Add data-video="ep${EP_NUM}" attribute on the root div (required for recording)
@@ -1202,9 +1219,9 @@ For each FAIL issue in the report:
 
 1. **Read the screenshot** for that scene to see what's actually on screen
 2. **Identify the root cause**:
-   - Is content overflowing the Act? → adjust layout within the Act (100vw × 100vh)
-   - Is the within-Act zoom (shots) clipping content? → adjust scale/x/y percentages
-   - Is the scene assigned to the wrong Act? → move it to the correct Act's scenes array
+   - Is content off-screen? → adjust the camera shot for that scene using focus() or fitRect()
+   - Is the camera zoom clipping content? → reduce scale or reposition with focus(cx, cy, lowerScale)
+   - Is content at the wrong zone position? → adjust the absolute vw/vh coordinates
    - Is it internal component positioning? (content offset within the component) → adjust the component
 3. **Fix the code**
 4. **Do NOT write a POSITION AUDIT comment** — the automated tool replaces manual math audits
@@ -1213,7 +1230,7 @@ For WARN issues (clipping):
 - If >40% is clipped, fix it
 - Minor edge clipping (<20%) is acceptable
 
-Ignore INFO items (elements from other Acts during Stage transitions).
+Ignore INFO items (elements from other zones visible during camera transitions).
 
 IMPORTANT: Do NOT compute positioning math manually. Fix by adjusting values, then re-run the visual QA tool to verify:
   node scripts/visual-qa.mjs ep${EP_NUM} ${VQ_OUTPUT_DIR}
@@ -1272,14 +1289,14 @@ gate_check "Custom palette EP_COLORS defined" \
 gate_check "Custom springs EP_SPRINGS defined" \
   "grep -q 'EP_SPRINGS' '${EP_PATH}/constants.ts'"
 
-gate_check "Stage/Act system used for layout" \
-  "grep -qE '<Stage|<Act' '${EP_PATH}/VideoTemplate.tsx'"
+gate_check "Camera system used for layout" \
+  "grep -qE '<Camera' '${EP_PATH}/VideoTemplate.tsx'"
 
 gate_check "Background is NOT default beige #E6D3B3" \
   "! grep -q \"#E6D3B3\" '${EP_PATH}/constants.ts'"
 
-gate_check "3+ Acts for visual variety" \
-  "[ \$(grep -c '<Act' '${EP_PATH}/VideoTemplate.tsx') -ge 3 ]"
+gate_check "3+ camera shots for dynamic movement" \
+  "[ \$(grep -cE 'focus\(|fitRect\(|scale:' '${EP_PATH}/VideoTemplate.tsx' '${EP_PATH}/constants.ts' 2>/dev/null | awk -F: '{s+=\$NF}END{print s}') -ge 3 ]"
 
 gate_check "Themed CE used (createThemedCE or ceThemes)" \
   "grep -rql 'createThemedCE\|ceThemes' '${EP_PATH}/'"
@@ -1305,9 +1322,9 @@ Fix instructions per rule:
 - No bare <CE>: use createThemedCE(ceThemes.xxx) to make an ECE, then use <ECE> instead of <CE>
 - GSAP must be used: import { useSceneGSAP } from '@/lib/video' and add at least one choreographed sequence
 - EP_COLORS / EP_SPRINGS: define in constants.ts with episode-specific values (not generic)
-- Stage/Act: import { Stage, Act } from '@/lib/video' — wrap content in Stage > Act components
+- Camera: import { Camera, focus, fitRect } from '@/lib/video' — wrap visual content in Camera with zones
 - No beige default: change bg in EP_COLORS to a color that fits the episode mood
-- 3+ Acts: split content into at least 3 Acts for visual variety
+- 3+ camera shots: define at least 3 distinct camera positions using focus()/fitRect() for dynamic movement
 - Themed CE: import ceThemes from '@/lib/video', call createThemedCE with a theme (blurIn, clipCircle, glitch, etc.)
 - Custom component: the episode's core visual must be a separate .tsx file, not inline in VideoTemplate
 
@@ -1318,7 +1335,7 @@ PROMPT_END
   # Re-run gates to verify fixes
   log "Re-checking hard gates after fix..."
   GATE_FAILS_POST=0
-  for check_name in "No bare CE" "GSAP used" "EP_COLORS" "EP_SPRINGS" "Stage/Act" "Not beige" "3+ Acts" "Themed CE" "Custom component"; do
+  for check_name in "No bare CE" "GSAP used" "EP_COLORS" "EP_SPRINGS" "Camera" "Not beige" "3+ camera shots" "Themed CE" "Custom component"; do
     # Just count — detailed log already happened above
     true
   done
@@ -1403,7 +1420,7 @@ YOUR FOCUS — score each 1-10:
 
 1. VISUAL ORIGINALITY — looks different from all episodes in the Episode Registry? Custom signature visual? Or is it another CE fade-in episode?
 2. ANIMATION VARIETY — does the core visual use GSAP, SVG morph, Canvas, CSS keyframes? CE should only be for text/labels. Score 1 if everything uses CE.
-3. VIEWPORT MOVEMENT — does the episode use Stage/Act with multiple Acts? Within-Act zoom shots? Overview mode? Static single-Act = low score.
+3. CAMERA MOVEMENT — does the episode have dynamic, non-linear camera movement? Zoom in/out (scale range 0.3-2.5+)? Backtrack to earlier zones? Vertical pans? Does the FINAL SCENE zoom out to reveal the entire canvas as a visual summary? Static or left-to-right-only = low score.
 4. CUSTOM PALETTE — EP_COLORS and EP_SPRINGS in constants.ts? Background NOT default beige?
 5. VISUAL POLISH — if screenshots available, READ THEM: layout balance, spacing, color harmony, text readability, professional quality. Would this stand up next to 3Blue1Brown?
 BONUS: If characters (Alice/Bob) are used — do they have varied emotions across scenes? Are gestures used meaningfully (not all 'none')? Do they look at each other during dialogue? Are speech bubbles readable and short? Do characters add personality or feel like decoration?

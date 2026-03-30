@@ -105,129 +105,150 @@ export default function VideoTemplate() {
 }
 ```
 
-## Stage/Act System — Declarative Layout (`@/lib/video/stage`) ⭐ NEW
+## Camera System — Cinematic Pan/Zoom (`@/lib/video/camera`) ⭐ PRIMARY
 
-**Use Stage/Act for all new episodes (ep13+).** It eliminates manual positioning math entirely — the #1 source of visual bugs in episodes 7-12.
-
-Instead of placing elements at absolute canvas coordinates and computing camera shots with `focus(cx, cy, scale)`, you declare Acts and Stage auto-frames them.
+**Use Camera for all new episodes.** Content lives on a large canvas (size it to fit — 300vw×200vh, 500vw×300vh, whatever you need). Camera pans and zooms freely between zones, creating dynamic, cinematic movement. A **dev minimap** (bottom-right in dev mode) shows the viewport position on the canvas and catches off-screen content.
 
 ```tsx
-import { Stage, Act } from '@/lib/video';
+import { Camera, focus, fitRect } from '@/lib/video';
 
-<Stage scene={s}>
-  <Act scenes={[0, 1, 2]}>
-    <TitleScreen scene={s} />
-  </Act>
-  <Act scenes={[3, 4, 5]}>
-    <PaddingVisual scene={s} />
-  </Act>
-  <Act scenes={[6, 7, 8]} shots={{
-    6: { scale: 0.9 },
-    7: { scale: 1.5, x: 70, y: 40 },
-  }}>
-    <DetailDiagram scene={s} />
-  </Act>
-</Stage>
+const ZONES = [
+  { label: 'A', x: 0, y: 0, w: 90, h: 80, color: '#3b82f6' },
+  { label: 'B', x: 110, y: 0, w: 80, h: 80, color: '#ef4444' },
+  { label: 'C', x: 110, y: 100, w: 80, h: 70, color: '#22c55e' },
+];
+
+const SHOTS = {
+  0: { x: 0, y: 0, scale: 1 },       // Zone A wide
+  2: focus(45, 30, 2.0),               // Zoom into Zone A detail
+  4: { x: 0, y: 0, scale: 1 },        // Pull back
+  5: focus(150, 40, 1.2),              // Pan to Zone B
+  7: focus(150, 135, 1.5),             // Pan DOWN to Zone C + zoom
+  9: focus(150, 40, 1.0),              // BACKTRACK to Zone B
+  11: fitRect(0, 0, 200, 180),         // FINAL: reveal entire canvas
+};
+
+<Camera scene={s} shots={SHOTS} width="250vw" height="200vh" zones={ZONES}>
+  {/* Content at zone positions */}
+  {sceneRange(s, 0, 5) && <TitleVisual style={{ position: 'absolute', left: '5vw', top: '5vh' }} />}
+  {sceneRange(s, 4, 10) && <CoreVisual style={{ position: 'absolute', left: '115vw', top: '5vh' }} />}
+  {sceneRange(s, 6, 11) && <DetailVisual style={{ position: 'absolute', left: '115vw', top: '105vh' }} />}
+</Camera>
+
+{/* Text captions — OUTSIDE Camera, in screen space (always visible) */}
+<ECE s={s} enter={0} exit={2}>Title text</ECE>
 ```
 
 ### How It Works
-- **Stage** lays out Acts side by side (horizontal strip or grid) on a canvas
-- **Each Act is viewport-sized** (100vw × 100vh) — content fills the full screen
-- When the scene changes, Stage **auto-pans** to center the active Act
-- **No manual coordinates, no camera math, no position audits**
-- Content inside each Act uses normal layout (flex, grid, absolute within 100vw×100vh)
+- Content placed at **absolute positions** on a large canvas (vw/vh units)
+- Camera **pans and zooms** per scene — free-form x, y, scale, rotate
+- `focus(cx, cy, scale)` — centers a canvas point on screen (replaces manual math)
+- `fitRect(x, y, w, h)` — auto-fits a canvas region in the viewport with padding
+- **Dev minimap** shows viewport position — green = good, red = past canvas edge
+- `zones` prop marks content regions on the minimap for visual verification
 
-### Act Props
+### Shot Helpers — Use These Instead of Manual Math
 ```tsx
-<Act
-  scenes={[3, 4, 5]}           // scenes when this Act is the primary focus
-  shots={{                      // optional: within-Act zoom/pan per scene
-    4: { scale: 1.5, x: 70, y: 40 },  // zoom to 1.5x at 70% across, 40% down
-  }}
->
-  {children}                    // design as if filling 100vw × 100vh
-</Act>
+// Center canvas point (45vw, 30vh) on screen at 2x zoom:
+focus(45, 30, 2.0)
+// → { x: '-40vw', y: '-10vh', scale: 2 }
+
+// Place canvas point at a specific screen position:
+focus(45, 30, { scale: 1.5, screenX: 30, screenY: 25 })
+
+// Auto-fit a rect with 10% padding (guaranteed visible):
+fitRect(100, 10, 80, 60)
+
+// Check if a rect is visible in a shot (0-1):
+visibility({ x: 100, y: 10, w: 80, h: 60 }, currentShot)
 ```
 
-- `scenes` — which scene indices this Act owns. Stage pans to this Act during these scenes.
-- `shots` — per-scene zoom within the Act. `x`/`y` are percentages (0-100, default 50 = center). `scale` > 1 zooms in.
-- Shots use the same "highest key ≤ scene" resolution as `morph()` — set a shot at scene 4 and it holds for scenes 5, 6, etc. until overridden.
+### The Final Reveal Pattern ⭐ REQUIRED
 
-### Stage Props
+**Every episode's LAST SCENE must zoom out to show the entire canvas.** This is the visual payoff — the viewer sees all the pieces they learned about as one connected picture.
+
 ```tsx
-<Stage
+// Final scene: reveal everything
+const SHOTS = {
+  // ... earlier shots zoom in/out of zones ...
+  [lastScene]: fitRect(0, 0, canvasW, canvasH, { pad: 5 }),  // show it all
+};
+```
+
+The reveal works because you've been building a mural the whole time but only showing one piece at a time. The zoom-out is the "aha" — everything connects.
+
+### What Makes Camera Movement Dynamic (NOT a slideshow)
+1. **Backtrack** — revisit earlier zones (scene 10 goes back to Zone B after Zone C)
+2. **Vertical pans** — don't just go left-right, pan up/down between zones
+3. **Varied scales** — range from `0.3` (way out) to `2.5+` (tight detail). NOT just 1.0→1.3→1.0
+4. **Non-linear journey** — the sequence of positions should NOT be monotonically increasing
+5. **Pull-back moments** — periodically zoom out to show context before diving into the next detail
+
+### Canvas Zone Planning
+Arrange zones on the canvas to support the narrative:
+- **Horizontal strip** — left-to-right timeline (blocks, history)
+- **Vertical stack** — layers of a protocol stack
+- **2×2 grid** — comparing 4 concepts (bugs, approaches)
+- **Radial** — center concept with satellite zones around it
+- **L-shape / scattered** — creates unpredictable camera paths
+
+Leave **10-20vw gaps** between zones to prevent cross-zone bleed during zooms.
+
+### Dev Minimap
+Shows automatically in dev mode (bottom-right, above DevControls):
+- Proportional canvas rectangle with zone markers
+- Green viewport rect = fully within canvas
+- Red viewport rect = extends past canvas edge (content may be off-screen)
+- Zone labels dim when out of frame, brighten when visible
+- Shot info: scene index, x/y offset, zoom level
+
+### Camera Props
+```tsx
+<Camera
   scene={s}                    // current scene from useVideoPlayer
-  layout="row"                 // 'row' (default) or 'grid'
-  columns={3}                  // grid columns (default 3, ignored for 'row')
-  gap={10}                     // gap between Acts in vw units (default 10)
-  transition={customSpring}    // override pan/zoom spring
-  overview={[20, 21, 22]}      // scenes where Stage zooms out to show ALL Acts
+  shots={SHOTS}                // scene-indexed camera positions
+  width="300vw"                // canvas width (size to fit content)
+  height="200vh"               // canvas height
+  transition={{                // spring config for camera movement
+    type: 'spring',
+    stiffness: 50,
+    damping: 22,
+    mass: 1.8,
+  }}
+  zones={ZONES}                // named zones for dev minimap
+  minimap={true}               // force minimap on/off (default: auto in dev)
 >
 ```
 
-### Overview Mode
-```tsx
-<Stage scene={s} overview={[20, 21, 22]}>
-```
-During overview scenes, Stage zooms out to show all Acts simultaneously with padding. Great for recap/summary scenes.
-
-### Grid Layout
-```tsx
-<Stage scene={s} layout="grid" columns={3}>
-```
-Acts arranged in rows and columns instead of a horizontal strip. Useful for comparison or matrix-style episodes.
-
-### Overlays (non-Act children)
-Non-Act children are rendered as viewport-relative overlays (fixed to the screen, not panning with Acts):
-```tsx
-<Stage scene={s}>
-  <Act scenes={[0, 1]}><Intro scene={s} /></Act>
-  <Act scenes={[2, 3]}><Detail scene={s} /></Act>
-
-  {/* This stays fixed on screen regardless of which Act is active */}
-  <ProgressBar scene={s} style={{ position: 'absolute', bottom: 0 }} />
-</Stage>
-```
-
-### Why Stage/Act Eliminates Positioning Bugs
-| Old Camera System | New Stage/Act System |
-|---|---|
-| Content at absolute canvas coords (`left: '145vw'`) | Content fills 100vw × 100vh — normal layout |
-| Manual camera shots (`focus(145, 30, 1.5)`) | Stage auto-pans to active Act |
-| Position audit math (`screen = canvas × scale + camera`) | No math needed |
-| Zone planning with 10vw gaps | Automatic gap management |
-| Content easily placed off-screen | Content can't be off-screen — it fills the viewport |
-| `sceneRange` must match camera pans | Acts declare their own scene ranges |
-
-### VideoTemplate Pattern with Stage/Act
+### VideoTemplate Pattern with Camera
 ```tsx
 export default function VideoTemplate() {
   const player = useVideoPlayer({ durations: SCENE_DURATIONS });
   const s = player.currentScene;
 
   return (
-    <div style={{ backgroundColor: EP_COLORS.bg }}>
-      <Stage scene={s}>
-        {/* Act 1: Introduction */}
-        <Act scenes={[0, 1, 2]}>
-          <TitleScreen scene={s} />
-        </Act>
+    <div style={{ backgroundColor: EP_COLORS.bg }} data-video="ep7">
+      {/* Camera wraps visual content on the canvas */}
+      <Camera scene={s} shots={CAMERA_SHOTS} width="300vw" height="200vh"
+        zones={ZONES} transition={EP_SPRINGS.camera}>
 
-        {/* Act 2: Core concept — zoom into detail at scene 4 */}
-        <Act scenes={[3, 4, 5]} shots={{ 4: { scale: 1.8, x: 30, y: 50 } }}>
-          <CoreVisual scene={s} />
-        </Act>
+        {/* Zone A: Introduction (scenes 0-4) */}
+        {sceneRange(s, 0, 5) && <BlockStrip scene={s} />}
 
-        {/* Act 3: Consequence / "why it matters" */}
-        <Act scenes={[6, 7, 8]}>
-          <ConsequenceVisual scene={s} />
-        </Act>
+        {/* Zone B: Core concept (scenes 5-9) */}
+        {sceneRange(s, 4, 10) && <UTXOHashmap scene={s} />}
 
-        {/* Act 4: Resolution + CTA */}
-        <Act scenes={[9, 10]}>
-          <Resolution scene={s} />
-        </Act>
-      </Stage>
+        {/* Zone C: Resolution (scenes 10-13) */}
+        {sceneRange(s, 10, 14) && <HexRibbon scene={s} />}
+
+        {/* Revisit Zone B (scene 16) */}
+        {sceneRange(s, 16, 18) && <UTXOHashmap scene={s} />}
+      </Camera>
+
+      {/* Text captions in screen space (outside Camera) */}
+      <ECE s={s} enter={0} exit={1} style={{ position: 'absolute', top: '30vh', left: '50vw' }}>
+        <h1>Episode Title</h1>
+      </ECE>
 
       <DevControls player={player} />
     </div>
@@ -235,11 +256,11 @@ export default function VideoTemplate() {
 }
 ```
 
-## Camera Component — Legacy (`@/lib/video/camera`)
+## Stage/Act System — Declarative Layout (`@/lib/video/stage`)
 
-> **For new episodes (ep13+), use Stage/Act instead.** Camera is kept for backward compatibility with episodes 7-12.
+> **Stage/Act is available but NOT recommended for new episodes.** It creates predictable left-to-right slide movement. Use Camera for dynamic, cinematic episodes. Stage/Act may be useful for very simple explainers that don't need camera movement.
 
-`<Camera>` wraps content on an oversized canvas and pans/zooms via manual coordinate math. See episodes 7-12 for usage examples. Requires `focus()` / `fitRect()` helpers and manual position verification.
+`<Stage>` lays out `<Act>` components side by side and auto-pans between them. Each Act fills 100vw×100vh. See the source at `client/src/lib/video/stage.tsx` for the full API.
 
 ## Automated Visual QA (`scripts/visual-qa.mjs`)
 
@@ -435,7 +456,7 @@ The shared library has scene transitions (`sceneTransitions.*`), element animati
 - [ ] CE using default fade-up (`opacity: 0, y: 15`) — use `createThemedCE()` with a different theme
 - [ ] Centered layout: heading top, diagram middle, label bottom
 - [ ] Same `springs.snappy` for all animations — define EP_SPRINGS
-- [ ] No camera/viewport movement — use `<Stage>` with multiple Acts
+- [ ] No camera/viewport movement — use `<Camera>` with zones and varied shots (zoom, backtrack, vertical pans)
 - [ ] No GSAP used — use `useSceneGSAP` for choreographed sequences
 - [ ] Core visual built from DiagramBox/FlowRow
 - [ ] **One element visible the entire video** — each act needs its own visual centerpiece
@@ -464,7 +485,7 @@ Answer these before writing any code:
 1. **What's the signature visual?** Not a DiagramBox. What custom animation makes this episode instantly recognizable?
 2. **What animation library drives it?** GSAP timeline? Three.js scene? React Spring physics? SVG path morphing?
 3. **What's the background?** Not beige by default. What mood does this topic demand?
-4. **What's the Act structure?** How many Acts? Which ones need within-Act zoom (`shots`)? Any overview scenes?
+4. **What's the canvas layout?** How big is the canvas? Where are the zones? What's the camera journey — does it backtrack, pan vertically, zoom from 0.3 to 2.5? Does the final scene reveal everything?
 5. **What's the motion verb?** How do elements enter/move/exit? (Not "fade in from below")
 
 ### Encouraged Custom Techniques
@@ -760,7 +781,7 @@ When building a new episode, **do NOT read existing episode VideoTemplate.tsx fi
 
 **What a new episode MUST do differently:**
 - Use `createThemedCE(ceThemes.xxx)` — pick a transition theme that fits the topic (blurIn, clipCircle, glitch, etc.). NEVER use bare CE with the default fade-up.
-- Use Stage/Act system for layout — never place elements at absolute canvas coordinates with manual camera math
+- Use Camera system for layout — place content in zones on a large canvas, use focus()/fitRect() for shots, pass zones for dev minimap. Final scene = full canvas reveal.
 - Use `useSceneGSAP` for at least one choreographed sequence
 - Define custom EP_COLORS and EP_SPRINGS in constants.ts
 - Core visual must NOT use CE — use morph(), GSAP timeline, SVG morph, or canvas
