@@ -19,14 +19,22 @@
 #   5. Director Storyboard Review
 #   5.5 Motion Script (timestamped animation spec)
 #   5.7 Wireframe Build + QA (verify positioning before real build)
+#   ★  CHECKPOINT 1 — opens browser, you watch wireframe, approve/redirect
 #   6. Build Custom Components
 #   7. Implement VideoTemplate (with cross-episode lessons fed in)
+#   ★  CHECKPOINT 2 — opens browser, you watch real episode, approve/redirect
 #   8. Visual QA
 #   8.5 Structural Hard Gates (8 automated grep checks — pre-critique)
-#   9. Critique (2 parallel: quality reviewer + storytelling reviewer) → Merge
-#      → Fix Plan → Rebuild (loop up to 2x)
+#   9. Critique (3 parallel: visual + tech + audience) → Merge
+#      → Fix Plan → Rebuild (loop up to 3x)
 #   10. Voiceover (optional)
 #   11. Cross-episode learning extraction (append-only episode log + pattern consolidation)
+#
+# Checkpoints:
+#   Both checkpoints open the episode in your browser so you can WATCH it.
+#   [y] = looks good, continue   [n] = type feedback, injected into next phase
+#   [r] = redo this phase from scratch
+#   Skipped when --full-auto is passed.
 #
 # Usage:
 #   ./scripts/auto-episode.sh <topic> <episode_number> <slug> [--palette=grayscale|brand|free] [--with-voice] [--full-auto]
@@ -119,6 +127,19 @@ RESEARCH_TOOLS="Read,Write,Glob,Grep,Agent,WebFetch,WebSearch"
 
 mkdir -p "$WORK_DIR"
 
+# ─── Cleanup ────────────────────────────────────────────────────────────────
+# Stop the dev server on exit (normal or Ctrl+C)
+
+cleanup() {
+  if [ -n "$DEV_SERVER_PID" ] && kill -0 "$DEV_SERVER_PID" 2>/dev/null; then
+    echo ""
+    log "Stopping dev server (PID $DEV_SERVER_PID)..."
+    kill "$DEV_SERVER_PID" 2>/dev/null
+    wait "$DEV_SERVER_PID" 2>/dev/null
+  fi
+}
+trap cleanup EXIT
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 timestamp() { date '+%H:%M:%S'; }
@@ -135,6 +156,123 @@ divider() {
   log "  $1: $2"
   log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   log ""
+}
+
+# ─── Preview Server Helpers ─────────────────────────────────────────────────
+# Start/stop the Vite dev server and open the episode in the browser.
+
+DEV_SERVER_PID=""
+DEV_PORT=5173
+
+start_preview() {
+  local ep_hash="ep${EP_NUM}"
+
+  # Check if dev server is already running
+  if curl -s "http://localhost:${DEV_PORT}" >/dev/null 2>&1; then
+    log "Dev server already running on port ${DEV_PORT}"
+  else
+    log "Starting dev server on port ${DEV_PORT}..."
+    cd "$PROJECT_DIR" && npm run dev:client > "$WORK_DIR/dev-server.log" 2>&1 &
+    DEV_SERVER_PID=$!
+
+    # Wait for server to be ready (up to 30s)
+    local waited=0
+    while ! curl -s "http://localhost:${DEV_PORT}" >/dev/null 2>&1; do
+      sleep 1
+      waited=$((waited + 1))
+      if [ "$waited" -ge 30 ]; then
+        log "Dev server failed to start after 30s"
+        return 1
+      fi
+    done
+    log "Dev server ready"
+  fi
+
+  # Open browser to the episode
+  local url="http://localhost:${DEV_PORT}/#${ep_hash}"
+  log "Opening browser: $url"
+  if command -v open >/dev/null 2>&1; then
+    open "$url"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url"
+  else
+    log "Could not auto-open browser. Visit: $url"
+  fi
+}
+
+stop_preview() {
+  if [ -n "$DEV_SERVER_PID" ] && kill -0 "$DEV_SERVER_PID" 2>/dev/null; then
+    log "Stopping dev server (PID $DEV_SERVER_PID)"
+    kill "$DEV_SERVER_PID" 2>/dev/null
+    wait "$DEV_SERVER_PID" 2>/dev/null
+    DEV_SERVER_PID=""
+  fi
+}
+
+# ─── Visual Checkpoint ─────────────────────────────────────────────────────
+# Opens the episode in a browser, lets the user watch it, then asks y/n.
+# If the user gives feedback, it's saved to a file for the next phase to read.
+#
+# Usage: checkpoint <label> <feedback_file>
+# Returns: 0 = continue, 1 = user wants to redo (feedback saved to file)
+#
+# Skipped when --full-auto is set.
+
+CHECKPOINT_FEEDBACK=""
+
+checkpoint() {
+  local label="$1"
+  local feedback_file="$WORK_DIR/$2"
+
+  if [ "$FULL_AUTO" = "true" ]; then
+    log "Checkpoint '$label' — skipped (--full-auto)"
+    return 0
+  fi
+
+  start_preview
+
+  echo ""
+  echo "╔══════════════════════════════════════════════════════════════════════╗"
+  echo "║  CHECKPOINT: $label"
+  echo "║                                                                    ║"
+  echo "║  The episode is playing in your browser.                           ║"
+  echo "║  Watch it, then come back here.                                    ║"
+  echo "║                                                                    ║"
+  echo "║  [y] Looks good — continue building                               ║"
+  echo "║  [n] Not right — I'll type what to change                         ║"
+  echo "║  [r] Redo this phase from scratch                                  ║"
+  echo "╚══════════════════════════════════════════════════════════════════════╝"
+  echo ""
+
+  while true; do
+    printf "  Your call [y/n/r]: "
+    read -r choice
+    case "$choice" in
+      y|Y)
+        log "Checkpoint '$label' — approved"
+        CHECKPOINT_FEEDBACK=""
+        return 0
+        ;;
+      n|N)
+        echo ""
+        echo "  What needs to change? (one line — this gets fed into the next phase):"
+        printf "  > "
+        read -r feedback
+        echo "$feedback" > "$feedback_file"
+        CHECKPOINT_FEEDBACK="$feedback"
+        log "Checkpoint '$label' — feedback: $feedback"
+        return 0
+        ;;
+      r|R)
+        log "Checkpoint '$label' — redo requested"
+        CHECKPOINT_FEEDBACK="__REDO__"
+        return 1
+        ;;
+      *)
+        echo "  Please type y, n, or r"
+        ;;
+    esac
+  done
 }
 
 # Run a claude -p phase. Saves output and session ID.
@@ -400,6 +538,7 @@ echo "║     • Wireframe-first build (verify positioning early)             �
 echo "║     • Structural hard gates (pre-critique grep checks)             ║"
 echo "║     • Multi-persona critique (quality + storytelling reviewers)     ║"
 echo "║     • Cross-episode learning w/ pattern consolidation              ║"
+echo "║     • Visual checkpoints — watch in browser, approve or redirect   ║"
 echo "║                                                                    ║"
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 echo ""
@@ -1076,6 +1215,24 @@ PROMPT_END
 )" --session-file "$BUILD_SESSION"
 fi
 
+# ── CHECKPOINT 1: WIREFRAME VISUAL REVIEW ────────────────────────────────────
+# The wireframe is built and QA'd. Let the user WATCH the camera journey
+# with placeholder boxes before we spend tokens building real components.
+
+if ! checkpoint "WIREFRAME — Watch the camera journey" "feedback-wireframe.txt"; then
+  # User chose 'r' (redo) — delete wireframe artifacts and re-run
+  log "Redoing wireframe phase..."
+  rm -f "$WORK_DIR/.done_wireframe" "$WORK_DIR/.done_wireframe-qa"
+  rm -f "${PROJECT_DIR}/${EP_PATH}/VideoTemplate.tsx"
+  exec "$0" "$TOPIC" "$EP_NUM" "$SLUG" "${@:4}"
+fi
+
+# If user gave feedback (chose 'n'), read it for the build phase
+WIREFRAME_FEEDBACK=""
+if [ -f "$WORK_DIR/feedback-wireframe.txt" ]; then
+  WIREFRAME_FEEDBACK=$(cat "$WORK_DIR/feedback-wireframe.txt")
+fi
+
 # ═════════════════════════════════════════════════════════════════════════════
 # PHASE 6: BUILD CUSTOM COMPONENTS  [Executor — reads all handoffs]
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1104,6 +1261,11 @@ ${DIRECTOR_STORYBOARD}
 ${PAST_LESSONS:+---LESSONS FROM PAST EPISODES (avoid these mistakes)---
 ${PAST_LESSONS}
 ---END LESSONS---
+}
+${WIREFRAME_FEEDBACK:+---HUMAN FEEDBACK ON WIREFRAME (address this FIRST)---
+The creator watched the wireframe and said: "${WIREFRAME_FEEDBACK}"
+Incorporate this feedback into the build. This takes priority over other guidance.
+---END HUMAN FEEDBACK---
 }
 Read these artifacts for full context:
 - Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
@@ -1226,6 +1388,23 @@ else
   log "Will address in visual QA or critique→plan→rebuild loop"
 fi
 
+# ── CHECKPOINT 2: FULL BUILD VISUAL REVIEW ───────────────────────────────────
+# The real episode is built. Let the user WATCH it before we spend tokens
+# on the expensive Visual QA + Hard Gates + 3-critic loop.
+
+if ! checkpoint "FULL BUILD — Watch the real episode" "feedback-build.txt"; then
+  # User chose 'r' (redo) — delete build artifacts and re-run from components
+  log "Redoing build phase..."
+  rm -f "$WORK_DIR/.done_build-components" "$WORK_DIR/.done_build-template"
+  exec "$0" "$TOPIC" "$EP_NUM" "$SLUG" "${@:4}"
+fi
+
+# If user gave feedback, inject it into visual QA + critique phases
+BUILD_FEEDBACK=""
+if [ -f "$WORK_DIR/feedback-build.txt" ]; then
+  BUILD_FEEDBACK=$(cat "$WORK_DIR/feedback-build.txt")
+fi
+
 # ═════════════════════════════════════════════════════════════════════════════
 # PHASE 8: VISUAL QA  [Executor — screenshots + positioning fixes]
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1268,15 +1447,19 @@ if [ -f "$WORK_DIR/typecheck.log" ] && [ -s "$WORK_DIR/typecheck.log" ]; then
   VQ_TS_ERRORS=$(cat "$WORK_DIR/typecheck.log")
 fi
 
-# Only run fix phase if there were issues
-if [ "$VQ_EXIT_CODE" -eq 1 ] || [ -n "$VQ_TS_ERRORS" ]; then
+# Only run fix phase if there were issues OR user gave feedback
+if [ "$VQ_EXIT_CODE" -eq 1 ] || [ -n "$VQ_TS_ERRORS" ] || [ -n "$BUILD_FEEDBACK" ]; then
 
 run_phase "visual-qa" "$(cat <<PROMPT_END
 You are a VISUAL QA ENGINEER for an animated Bitcoin explainer episode. Your job is to fix positioning issues found by the automated visual QA tool.
 
 Episode: ${EP_NUM} (${TOPIC}) at ${EP_PATH}/
 
-## AUTOMATED VISUAL QA REPORT
+${BUILD_FEEDBACK:+## HUMAN FEEDBACK (address FIRST — highest priority)
+The creator watched the episode and said: "${BUILD_FEEDBACK}"
+Fix this before addressing automated QA issues.
+
+}## AUTOMATED VISUAL QA REPORT
 The tool opened the episode in Playwright at 1920×1080, stepped through every scene, and used getBoundingClientRect() to check element positions. This is deterministic — the numbers are pixel-accurate.
 
 ${VQ_REPORT}
@@ -1470,7 +1653,10 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
   SHARED_CRITIQUE_CONTEXT=$(cat <<CONTEXT_END
 Episode ${EP_NUM} (${TOPIC}) at ${EP_PATH}/
 
-Read the code:
+${BUILD_FEEDBACK:+HUMAN FEEDBACK (the creator watched and said): "${BUILD_FEEDBACK}"
+Pay extra attention to whether this feedback has been addressed.
+
+}Read the code:
 - ${EP_PATH}/VideoTemplate.tsx and all custom components in that folder
 - ${EP_PATH}/constants.ts
 
@@ -1976,8 +2162,10 @@ echo "║  Pipeline flow:                                                    ║
 echo "║    Research (3 parallel) → Merge → Director Review                 ║"
 echo "║    → Creative Vision → Storyboard → Director Review               ║"
 echo "║    → Motion Script → Wireframe → Wireframe QA                     ║"
-echo "║    → Build Components → Build Template → Visual QA                 ║"
-echo "║    → Hard Gates (8 structural checks) → Auto-fix if needed         ║"
+echo "║    → ★ CHECKPOINT 1: Watch wireframe in browser                    ║"
+echo "║    → Build Components → Build Template → Type Check                ║"
+echo "║    → ★ CHECKPOINT 2: Watch full episode in browser                 ║"
+echo "║    → Visual QA → Hard Gates → Auto-fix if needed                   ║"
 echo "║    → Critique (3 parallel) → Merge → Plan → Rebuild (loop)        ║"
 echo "║    → Lessons Learned (w/ pattern consolidation)                    ║"
 echo "║                                                                    ║"
