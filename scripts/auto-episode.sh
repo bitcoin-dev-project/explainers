@@ -693,12 +693,27 @@ RULES:
 - ${PALETTE_INSTRUCTION}
 - The director already decided the teaching approach — your job is the visual execution
 
+TECHNIQUE SELECTION — pick the RIGHT tool for the concept:
+- **Canvas 2D** — best when the concept has a PHYSICAL or MATHEMATICAL model underneath: particles, heatmaps, fluid/flow, data grids, collision physics, procedural generation. Canvas gives you a render loop (requestAnimationFrame) where you control every pixel every frame. This produces our highest-quality visuals (see EP8 sponge tank, EP9 heatmap). Use Canvas 2D when the visual needs continuous simulation, not just state transitions.
+- **GSAP timeline** — best for choreographed multi-element sequences with precise timing: step-by-step processes, cascading reveals, coordinated multi-part animations where element A finishes → element B starts. GSAP excels at orchestration.
+- **SVG path morphing** — best for shape transformations: one shape becoming another, line-drawing reveals, organic/curved visuals, circuit diagrams, tree growth.
+- **CSS @keyframes** — best for ambient loops that run independently: pulsing glows, rotating elements, gradient shifts, floating particles. Layer these WITH other techniques for depth.
+- **Framer Motion morph()** — best for declarative state transitions: element moves from position A to B across scenes. Good for layout changes, not for continuous simulation.
+- **Combine techniques.** The best episodes layer multiple: Canvas 2D core + CSS ambient loops + GSAP for supporting element choreography.
+
+THE QUALITY BAR — what makes a signature visual memorable:
+1. It has an UNDERLYING MODEL — not just styled divs that animate. A particle simulation, a mathematical curve, a grid with computed values, a physics engine. The model drives the visual, not hardcoded keyframes.
+2. It has CONTINUOUS LIFE — something is always moving, even between scene transitions. Brownian motion, ambient shimmer, pulsing glow. The scene feels alive, not frozen between state changes.
+3. It has MULTIPLE MODES/STATES — the same visual behaves differently across scenes. A sponge tank that absorbs, permutes, squeezes, bounces attacks. A heatmap that fills linearly, then quadratically, then gets capped. Mode changes create drama.
+4. It has LAYERED EFFECTS — not one flat animation but depth: glow underneath + core element + highlight on top. Gradients, shadows, bloom, caustics.
+5. It's 200+ lines of code — a signature visual that's under 100 lines is probably too simple. The best ones (SpongeCanvas, HeatmapCanvas, UTXOHashmap) are 300-500 lines.
+
 For your chosen concept, detail:
-a) THE SIGNATURE VISUAL — the ONE custom animation that makes this episode instantly recognizable
+a) THE SIGNATURE VISUAL — the ONE custom animation that makes this episode instantly recognizable. Describe: what rendering technique? What's the underlying model? What modes/states does it have across scenes? What makes it feel alive between transitions?
 b) COLOR PALETTE — define EP_COLORS following the color mode above
 c) LAYOUT PATTERN — NOT centered-stack-with-heading — what serves THIS content?
 d) ANIMATION PERSONALITY — spring configs, timing, motion style that matches the topic
-e) CUSTOM COMPONENTS NEEDED — what must be built from scratch for this episode
+e) CUSTOM COMPONENTS NEEDED — what must be built from scratch for this episode. Each act should have its own visual centerpiece.
 f) CHARACTER PLAN — if the director said YES to characters: How are Alice & Bob used? Which scenes have dialogue? What's their positioning (e.g., Alice left 25%, Bob right 75%)? What emotions/gestures drive the key moments? If NO characters: skip this. Read the "Characters" section in CLAUDE.md for the full API (emotions, gestures, lookAt, speech bubbles).
 
 Also brainstorm 2 alternative concepts (brief, 1 paragraph each) so the director could course-correct if needed. But commit to your best one.
@@ -708,6 +723,7 @@ Rate your chosen concept:
 - How naturally it fits the topic (1-10)
 - Visual wow factor (1-10)
 - Feasibility in React + Framer Motion (1-10)
+- Underlying model depth (1-10): does the core visual have a real model (physics, math, data) driving it, or is it just styled divs with transitions?
 
 Save the full creative brief to .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
 PROMPT_END
@@ -1104,6 +1120,14 @@ IMPORTANT:
 - Use viewport-relative units (vw, vh) for responsive 1920x1080 capture
 - Do NOT use DiagramBox, FlowRow, or shared library components as the core visual
 - Import CE from @/lib/video ONLY for supporting text/labels, not the core animation
+
+SIGNATURE VISUAL QUALITY FLOOR — the core visual component must have:
+- An UNDERLYING MODEL that drives the animation (physics sim, math curve, data grid, state machine) — not just hardcoded CSS transforms on styled divs
+- CONTINUOUS LIFE — ambient motion even between scene changes (Brownian drift, shimmer, pulse). Use requestAnimationFrame for Canvas 2D, or CSS @keyframes for ambient loops
+- MULTIPLE MODES — the visual should behave differently across scenes (e.g., idle → active → climax → resolution), not just appear/disappear
+- LAYERED RENDERING — depth through glow + core + highlight layers, gradients, shadows. Flat single-layer elements look cheap
+- SUBSTANTIAL COMPLEXITY — aim for 200-500 lines. Under 100 lines usually means the visual is too simple to carry the episode
+Reference: EP8's SpongeCanvas.tsx (497 lines, Canvas 2D particle physics, 5 modes) and EP9's HeatmapCanvas.tsx (321 lines, Canvas 2D grid, 3 fill modes with heat color ramp) set the quality bar.
 - Import { Camera, focus, fitRect } from @/lib/video for layout — place content at zone positions on the canvas, Camera handles viewport movement
 - All visual components stay MOUNTED inside Camera at all times — do NOT use sceneRange() to unmount them. This enables backtracking and the final canvas reveal. Leave 20-30vw gaps between zones so neighbors don't bleed into frame.
 - If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE.md for the full props API (emotions, gestures, lookAt, speech bubbles).
@@ -1340,8 +1364,14 @@ gate_check "Themed CE used (createThemedCE or ceThemes)" \
 gate_check "Has custom visual component (not just VideoTemplate)" \
   "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' | wc -l | tr -d ' ') -ge 1 ]"
 
+gate_check "Signature visual has substantial complexity (150+ lines)" \
+  "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' ! -name 'constants.ts' -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print \$1}') -ge 150 ]"
+
+gate_check "2+ custom visual components (multi-act variety)" \
+  "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' ! -name 'constants.ts' | wc -l | tr -d ' ') -ge 2 ]"
+
 log ""
-log "Hard gates: $((8 - GATE_FAILS))/8 passed"
+log "Hard gates: $((10 - GATE_FAILS))/10 passed"
 
 if [ "$GATE_FAILS" -gt 0 ]; then
   log "⚠ $GATE_FAILS structural violation(s) — auto-fixing before critique"
@@ -1362,6 +1392,8 @@ Fix instructions per rule:
 - 3+ camera shots: define at least 3 distinct camera positions using focus()/fitRect() for dynamic movement
 - Themed CE: import ceThemes from '@/lib/video', call createThemedCE with a theme (blurIn, clipCircle, glitch, etc.)
 - Custom component: the episode's core visual must be a separate .tsx file, not inline in VideoTemplate
+- Signature visual 150+ lines: the core visual is too simple — add an underlying model (physics, math, data), multiple modes/states, layered rendering (glow + core + highlight), and ambient motion. Reference EP8 SpongeCanvas.tsx (497 lines) and EP9 HeatmapCanvas.tsx (321 lines) for the quality bar.
+- 2+ custom components: each act needs its own visual centerpiece — one component for the whole episode means no visual variety. Build distinct visuals for different narrative acts.
 
 Read ${EP_PATH}/ files and fix each violation. Then run: npx tsc --noEmit --project client/tsconfig.json
 PROMPT_END
@@ -1458,9 +1490,16 @@ YOUR FOCUS — score each 1-10:
 3. CAMERA MOVEMENT — does the episode have dynamic, non-linear camera movement? Zoom in/out (scale range 0.3-2.5+)? Backtrack to earlier zones? Vertical pans? Does the FINAL SCENE zoom out to reveal the entire canvas as a visual summary? Static or left-to-right-only = low score.
 4. CUSTOM PALETTE — EP_COLORS and EP_SPRINGS in constants.ts? ${PALETTE_CRITIQUE}
 5. VISUAL POLISH — if screenshots available, READ THEM: layout balance, spacing, color harmony, text readability, professional quality. Would this stand up next to 3Blue1Brown?
+6. SIGNATURE VISUAL DEPTH — READ the core visual component code and evaluate:
+   a) Does it have an UNDERLYING MODEL (physics simulation, math computation, data-driven grid, state machine)? Or is it just styled divs with Framer Motion transitions? Score 1-3 if no model, 4-6 if basic state machine, 7-10 if real simulation/computation.
+   b) Does it have CONTINUOUS LIFE (ambient motion between scene changes — Brownian drift, shimmer, requestAnimationFrame loop)? Or does it freeze between transitions? -2 if static between scenes.
+   c) Does it have MULTIPLE MODES that change behavior across scenes (not just visibility on/off)? -2 if single mode throughout.
+   d) Does it have LAYERED RENDERING (glow + core + highlight, gradients, shadows, bloom)? -1 if flat/single-layer.
+   e) Is the component 200+ lines? Under 100 lines is almost certainly too simple to carry an episode.
+   Reference: EP8 SpongeCanvas.tsx (Canvas 2D particle physics, 5 modes, 497 lines) and EP9 HeatmapCanvas.tsx (Canvas 2D heatmap, 3 modes, 321 lines) are the quality bar.
 BONUS: If characters (Alice/Bob) are used — do they have varied emotions across scenes? Are gestures used meaningfully (not all 'none')? Do they look at each other during dialogue? Are speech bubbles readable and short? Do characters add personality or feel like decoration?
 
-OVERALL VISUAL SCORE: X/50
+OVERALL VISUAL SCORE: X/60
 
 LIST specific visual issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE
 
@@ -1566,7 +1605,7 @@ ${CRIT_AUDIENCE}
 ---END AUDIENCE---
 
 MERGE RULES:
-1. Extract scores: VISUAL_SCORE (out of 50) + TECHNICAL_SCORE (out of 30) + AUDIENCE_SCORE (out of 20) = TOTAL/100
+1. Extract scores: VISUAL_SCORE (out of 60) + TECHNICAL_SCORE (out of 30) + AUDIENCE_SCORE (out of 20) = RAW TOTAL/110. Then normalize: TOTAL = round(RAW * 100 / 110) to get a score out of 100.
 2. If a score line is missing, estimate based on the critique content
 3. Consolidate all issues into a single list, removing duplicates
 4. When critics disagree, prioritize: MUST FIX issues from ANY critic stay MUST FIX
@@ -1577,10 +1616,10 @@ Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-iter${ITERATION}.md
 
 Format:
 ## Scores
-- Visual Design: X/50 (from visual critic)
+- Visual Design: X/60 (from visual critic — includes signature visual depth)
 - Technical Quality: X/30 (from tech critic)
 - Audience Experience: X/20 (from audience proxy)
-- **TOTAL: X/100**
+- **TOTAL: X/100** (normalized from raw X/110)
 
 ## Consolidated Issues
 

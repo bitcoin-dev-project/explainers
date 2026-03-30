@@ -29,6 +29,26 @@ Add via `npm install` if an episode genuinely needs them (don't add speculativel
 
 **Rule: the episode's core visual should NOT use CE.** CE is fine for supporting text and labels. The thing that makes the episode memorable should use a different technique — GSAP timeline, Three.js scene, React Spring physics, SVG morph, CSS keyframes, or raw canvas.
 
+### Technique Selection Guide — Pick the Right Tool
+
+- **Canvas 2D** — when the concept has a physical or mathematical model: particles, heatmaps, fluid/flow, data grids, collision physics, procedural generation. Canvas gives you `requestAnimationFrame` with per-pixel control every frame. This produces our highest-quality visuals (EP8 SpongeCanvas, EP9 HeatmapCanvas).
+- **GSAP timeline** — for choreographed multi-element sequences with precise timing: step-by-step processes, cascading reveals, coordinated animations where element A finishes → element B starts.
+- **SVG path morphing** — for shape transformations: one shape becoming another, line-drawing reveals, organic/curved visuals, tree growth.
+- **CSS @keyframes** — for ambient loops that run independently: pulsing glows, rotating elements, floating particles. Layer these WITH other techniques for depth.
+- **Framer Motion morph()** — for declarative state transitions: element moves from position A to B across scenes. Good for layout changes, not for continuous simulation.
+- **Combine techniques.** The best episodes layer multiple: Canvas 2D core + CSS ambient loops + GSAP for supporting choreography.
+
+### Signature Visual Quality Bar
+
+The core visual component must have:
+1. **An underlying model** — physics simulation, math computation, data-driven grid, or state machine. Not just styled divs with transitions.
+2. **Continuous life** — ambient motion between scene changes (Brownian drift, shimmer, `requestAnimationFrame` loop, CSS @keyframes). The scene feels alive, not frozen.
+3. **Multiple modes/states** — behavior changes across scenes (e.g., idle → active → climax → resolution), not just visibility on/off.
+4. **Layered rendering** — glow + core + highlight, gradients, shadows, bloom. Depth, not flat single-layer elements.
+5. **Substantial complexity** — aim for 200-500 lines. Under 100 lines is too simple to carry an episode.
+
+Reference implementations: EP8 `SpongeCanvas.tsx` (497 lines, Canvas 2D particle physics with 5 modes) and EP9 `HeatmapCanvas.tsx` (321 lines, Canvas 2D grid with 3 fill modes and heat color ramp).
+
 ## Episode Architecture — Single Canvas
 
 All visual elements live in ONE component. `currentScene` drives what's visible. Elements transform and morph — they don't mount/unmount like slides.
