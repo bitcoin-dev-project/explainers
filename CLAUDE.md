@@ -264,15 +264,9 @@ export default function VideoTemplate() {
 }
 ```
 
-## Stage/Act System — Declarative Layout (`@/lib/video/stage`)
-
-> **Stage/Act is available but NOT recommended for new episodes.** It creates predictable left-to-right slide movement. Use Camera for dynamic, cinematic episodes. Stage/Act may be useful for very simple explainers that don't need camera movement.
-
-`<Stage>` lays out `<Act>` components side by side and auto-pans between them. Each Act fills 100vw×100vh. See the source at `client/src/lib/video/stage.tsx` for the full API.
-
 ## Automated Visual QA (`scripts/visual-qa.mjs`)
 
-**Run after building any episode** (Camera-based or Stage-based). Opens the episode in Playwright at 1920×1080, steps through every scene, checks element positions with `getBoundingClientRect()`.
+**Run after building any episode.** Opens the episode in Playwright at 1920×1080, steps through every scene, checks element positions with `getBoundingClientRect()`.
 
 ```bash
 node scripts/visual-qa.mjs ep11 ./visual-qa-output
