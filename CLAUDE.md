@@ -781,7 +781,7 @@ CHARACTERS (scenes 3-13):
 - Find a natural analogy (or skip it if none fits)
 - Open from what the viewer already knows, then build toward the technical concept
 - **One sentence per scene heading, max ~15 words** — if you're writing more, split it
-- **Every scene should have animated visuals** — text captions the animation, not the other way around
+- **Most scenes should have animated visuals** — text captions the animation, not the other way around. A deliberate text-only moment for emphasis or contrast is a valid design choice; defaulting to text-only because it's easier is not.
 - Use a real worked example with actual values when possible
 - Progressive reveal in every scene — staggered delays, never dump everything at once
 - **Vary motion style to match the topic's mood** — don't use identical spring configs for every episode
