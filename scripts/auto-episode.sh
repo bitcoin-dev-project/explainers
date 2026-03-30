@@ -8,7 +8,7 @@
 # Architecture:
 #   Planner (Director)  — thinks, reviews, steers (CAN'T edit code)
 #   Executor (Builder)  — implements, builds, fixes (CAN edit code)
-#   Parallel agents     — 3 agents run simultaneously (research, critique)
+#   Parallel agents     — run simultaneously (3 research, 2 critique)
 #   Handoff files       — each phase writes .md artifacts the next reads
 #
 # Pipeline flow:
@@ -23,8 +23,8 @@
 #   7. Implement VideoTemplate (with cross-episode lessons fed in)
 #   8. Visual QA
 #   8.5 Structural Hard Gates (8 automated grep checks — pre-critique)
-#   9. Critique (3 parallel: visual designer + tech reviewer + audience proxy) → Merge
-#      → Fix Plan → Rebuild (loop up to 3x)
+#   9. Critique (2 parallel: quality reviewer + storytelling reviewer) → Merge
+#      → Fix Plan → Rebuild (loop up to 2x)
 #   10. Voiceover (optional)
 #   11. Cross-episode learning extraction (append-only episode log + pattern consolidation)
 #
@@ -56,21 +56,23 @@
 
 # ─── Args ────────────────────────────────────────────────────────────────────
 
-TOPIC="${1:?Usage: auto-episode.sh <topic> <ep_number> <slug> [--palette grayscale|brand|free] [--with-voice] [--full-auto] [--verbose]}"
+TOPIC="${1:?Usage: auto-episode.sh <topic> <ep_number> <slug> [--palette grayscale|brand|free] [--with-voice] [--full-auto] [--skip-critique] [--verbose]}"
 EP_NUM="${2:?Missing episode number}"
 SLUG="${3:?Missing slug (e.g., merkle-trees)}"
 
 WITH_VOICE=false
 FULL_AUTO=false
 VERBOSE=false
+SKIP_CRITIQUE=false
 PALETTE="free"
 for arg in "${@:4}"; do
   case "$arg" in
-    --with-voice) WITH_VOICE=true ;;
-    --full-auto)  FULL_AUTO=true ;;
-    --verbose)    VERBOSE=true ;;
-    --palette)    echo "Error: --palette requires a value (grayscale|brand|free)"; exit 1 ;;
-    --palette=*)  PALETTE="${arg#--palette=}" ;;
+    --with-voice)      WITH_VOICE=true ;;
+    --full-auto)       FULL_AUTO=true ;;
+    --verbose)         VERBOSE=true ;;
+    --skip-critique)   SKIP_CRITIQUE=true ;;
+    --palette)         echo "Error: --palette requires a value (grayscale|brand|free)"; exit 1 ;;
+    --palette=*)       PALETTE="${arg#--palette=}" ;;
     *) echo "Unknown flag: $arg"; exit 1 ;;
   esac
 done
@@ -396,7 +398,7 @@ echo "║     • Parallel research (3 sub-agents: tech, visual, angle)        �
 echo "║     • Motion script (timestamped animation spec)                   ║"
 echo "║     • Wireframe-first build (verify positioning early)             ║"
 echo "║     • Structural hard gates (pre-critique grep checks)             ║"
-echo "║     • Multi-persona critique (designer, tech, audience proxy)      ║"
+echo "║     • Multi-persona critique (quality + storytelling reviewers)     ║"
 echo "║     • Cross-episode learning w/ pattern consolidation              ║"
 echo "║                                                                    ║"
 echo "╚══════════════════════════════════════════════════════════════════════╝"
@@ -1321,7 +1323,7 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 # PHASE 8.5: STRUCTURAL HARD GATES  [Bash — no tokens, instant checks]
 # ═════════════════════════════════════════════════════════════════════════════
-# Catch CLAUDE.md rule violations BEFORE spending tokens on 3 critic agents.
+# Catch CLAUDE.md rule violations BEFORE spending tokens on critic agents.
 # Each check is a simple grep — zero cost, zero context window usage.
 # Inspired by Ralph's verifiable acceptance criteria pattern.
 
@@ -1415,8 +1417,13 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 
 QUALITY_THRESHOLD=75
-MAX_ITERATIONS=3
+MAX_ITERATIONS=2
 ITERATION=0
+
+if [ "$SKIP_CRITIQUE" = "true" ]; then
+  log "Skipping critique loop (--skip-critique). Review the episode manually."
+  SCORE="(skipped)"
+else
 
 while [ $ITERATION -lt $MAX_ITERATIONS ]; do
   ITERATION=$((ITERATION + 1))
@@ -1458,7 +1465,7 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
     fi
   fi
 
-  # ── MULTI-PERSONA PARALLEL CRITIQUE (3 agents) ──────────────────────────
+  # ── PARALLEL CRITIQUE (2 agents: quality + storytelling) ────────────────
 
   SHARED_CRITIQUE_CONTEXT=$(cat <<CONTEXT_END
 Episode ${EP_NUM} (${TOPIC}) at ${EP_PATH}/
@@ -1478,162 +1485,175 @@ ${SCREENSHOT_NOTE}
 CONTEXT_END
 )
 
-  # ── Critic A: Visual Designer ───────────────────────────────────────────
-  PROMPT_CRITIC_VISUAL=$(cat <<PROMPT_END
-You are a VISUAL DESIGNER reviewing an animated episode. You care about aesthetics, motion design, and visual polish. Be brutally honest.
+  # ── Critic A: Quality Reviewer (visual polish + technical accuracy) ─────
+  PROMPT_CRITIC_QUALITY=$(cat <<PROMPT_END
+You are a QUALITY REVIEWER for an animated Bitcoin explainer. You evaluate visual polish, technical accuracy, and code correctness. Be precise and brutally honest.
 
 ${SHARED_CRITIQUE_CONTEXT}
 
-YOUR FOCUS — score each 1-10:
+Also read:
+- .auto-episode/ep${EP_NUM}-${SLUG}/research.md (the technical research — check factual accuracy against this)
+- .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa/report.md (automated positioning report, if it exists)
 
-1. VISUAL ORIGINALITY — looks different from all episodes in the Episode Registry? Custom signature visual? Or is it another CE fade-in episode?
-2. ANIMATION VARIETY — does the core visual use GSAP, SVG morph, Canvas, CSS keyframes? CE should only be for text/labels. Score 1 if everything uses CE.
-3. CAMERA MOVEMENT — does the episode have dynamic, non-linear camera movement? Zoom in/out (scale range 0.3-2.5+)? Backtrack to earlier zones? Vertical pans? Does the FINAL SCENE zoom out to reveal the entire canvas as a visual summary? Static or left-to-right-only = low score.
-4. CUSTOM PALETTE — EP_COLORS and EP_SPRINGS in constants.ts? ${PALETTE_CRITIQUE}
-5. VISUAL POLISH — if screenshots available, READ THEM: layout balance, spacing, color harmony, text readability, professional quality. Would this stand up next to 3Blue1Brown?
-6. SIGNATURE VISUAL CRAFT — READ the core visual component code and evaluate:
-   a) Does the visual TEACH the concept? Does looking at it help you understand the idea, or is it just decorative? Teaching clarity > visual complexity. Score 1-3 if the visual doesn't help understanding, 7-10 if it makes the concept click.
-   b) Does it represent something REAL (a data structure, a process, a computation)? Or is it just styled divs with transitions? Score 1-3 if purely decorative, 4-6 if basic representation, 7-10 if it genuinely models the concept.
-   c) Does it feel ALIVE between scene transitions (ambient motion, pulse, shimmer — even subtle)? -1 if completely static between scenes.
-   d) Does it EVOLVE across scenes (not just appear/disappear)? -1 if single state throughout.
-   e) Is the complexity APPROPRIATE for the concept? A simple concept with a 500-line overbuilt visual is just as bad as a complex concept with a 50-line underbuilt one. Score based on whether the visual's complexity matches what the concept needs.
-BONUS: If characters (Alice/Bob) are used — do they have varied emotions across scenes? Are gestures used meaningfully (not all 'none')? Do they look at each other during dialogue? Are speech bubbles readable and short? Do characters add personality or feel like decoration?
+YOUR FOCUS — score each category:
 
-OVERALL VISUAL SCORE: X/60
+## A. VISUAL POLISH (15 points)
+Score 1-15 holistically:
+- If screenshots available, READ THEM: layout balance, spacing, color harmony, text readability
+- Does it look professional? Would it stand up next to 3Blue1Brown?
+- Does the signature visual TEACH the concept (not just decorate)? Does it represent something real?
+- Does it feel alive between scenes (ambient motion, pulse, shimmer)?
+- Does it evolve across scenes (not just appear/disappear)?
+- If characters (Alice/Bob) appear: varied emotions? Meaningful gestures? Natural dialogue?
+NOTE: Do NOT check whether GSAP/Camera/EP_COLORS exist — the automated hard gates already verify structural compliance. Focus on SUBJECTIVE quality that automation can't judge.
 
-LIST specific visual issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE
+## B. TECHNICAL ACCURACY (10 points)
+Score 1-10:
+- Are Bitcoin/crypto concepts explained correctly? Compare against the research document.
+- Are real values used (actual hashes, real addresses, computed outputs) or placeholders?
+- Any factual errors that would mislead a developer viewer?
 
-Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-visual-iter${ITERATION}.md
+## C. CAMERA & MOTION (15 points)
+Score 1-15:
+- Does the camera journey feel CINEMATIC? Varied scales (0.3-2.5+), backtracking, vertical pans?
+- Does the final scene reveal the entire canvas?
+- Is the motion personality appropriate for the topic (aggressive for security, precise for math, flowing for network)?
+- Do GSAP timelines choreograph multi-element sequences, or is it just basic fade-ins?
+- ${PALETTE_CRITIQUE}
 
-At the very end, output EXACTLY: VISUAL_SCORE: <number>
+OVERALL QUALITY SCORE: X/40
+
+LIST specific issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE.
+For each issue, note which category (visual/accuracy/motion) it falls under.
+
+Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-quality-iter${ITERATION}.md
+
+At the very end, output EXACTLY: QUALITY_SCORE: <number>
 PROMPT_END
 )
 
-  # ── Critic B: Technical Reviewer ────────────────────────────────────────
-  PROMPT_CRITIC_TECH=$(cat <<PROMPT_END
-You are a TECHNICAL REVIEWER for a Bitcoin explainer video. You care about accuracy, code quality, and positioning correctness. Be precise.
+  # ── Critic B: Storytelling Reviewer (narrative, teaching, emotional arc) ─
+  PROMPT_CRITIC_STORY=$(cat <<PROMPT_END
+You are a DEVELOPER WHO KNOWS BASIC BITCOIN but NOT the specific topic of this episode. You are the TARGET AUDIENCE watching this for the first time. Your job is to evaluate the STORYTELLING — does this episode teach effectively and hold attention?
 
 ${SHARED_CRITIQUE_CONTEXT}
 
-Also read: .auto-episode/ep${EP_NUM}-${SLUG}/research.md (the technical research)
+YOUR FOCUS — score each category:
 
-YOUR FOCUS — score each 1-10:
+## A. HOOK & OPENING (12 points)
+Score 1-12:
+- Does scene 1 grab attention? Is the title compelling?
+- Does scene 2 start from FAMILIAR GROUND, or does it throw jargon at you?
+- Would you keep watching after the first 10 seconds, or click away?
+- Is there a clear promise of what you'll learn?
 
-1. TECHNICAL ACCURACY — are Bitcoin/crypto concepts explained correctly? Real values used? Any factual errors?
-2. CODE QUALITY — compiles? (TS errors: ${TYPECHECK_ERRORS:-none}) Clean structure? No dead code?
-3. POSITIONING ACCURACY — check the visual QA report at .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa/report.md (if it exists).
-   - Are there any FAIL issues (off-screen elements)? Flag as MUST FIX.
-   - Are there WARN issues (clipped elements)? Flag significant ones as SHOULD FIX.
-   - If no report exists, run: node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa
-   - Also check: visual components inside Camera should NOT use sceneRange() (breaks backtracking + final reveal). Any empty scenes?
-   Score 1 if report has failures. Score 10 if report shows all scenes pass.
+## B. TEACHING FLOW (12 points)
+Score 1-12:
+- One idea per scene? Progressive reveal? Or does it dump information?
+- Can you follow the logic from scene to scene without re-reading?
+- Does each scene BUILD on the previous one, or do they feel disconnected?
+- Are transitions between concepts smooth ("Now that we know X, let's see Y") or jarring?
+- Does the visual actually HELP you understand, or is it just decoration while text does the teaching?
 
-OVERALL TECHNICAL SCORE: X/30
+## C. TEXT DISCIPLINE (12 points)
+Score 1-12:
+- One sentence per scene heading? Max ~15 words per text element?
+- Or are there walls of text that would fly by in a video?
+- Are real values used ("01100010...") instead of vague descriptions ("the input gets converted")?
+- Progressive reveal within scenes — staggered appearance, not everything at once?
 
-LIST specific technical issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE
+## D. EMOTIONAL ARC (12 points)
+Score 1-12:
+- Do you feel the arc: curiosity → confusion → partial clarity → AHA → satisfaction?
+- Is there a clear HIGHLIGHT SCENE — a moment that visually breaks the pattern for the key insight?
+- Where does the "wait, really?!" moment land? Is it earned through buildup?
+- Is there a "why is this a big deal?" beat that frames the significance?
 
-Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-tech-iter${ITERATION}.md
+## E. COMPLETENESS & IMPACT (12 points)
+Score 1-12:
+- After watching, do you understand the concept well enough to explain it to someone?
+- Does the episode leave you wanting to learn more (about the next topic)?
+- Is there a satisfying conclusion that ties everything together?
+- Does the CTA scene feel natural or forced?
+- Would you share this with a developer friend? Why or why not?
 
-At the very end, output EXACTLY: TECHNICAL_SCORE: <number>
-PROMPT_END
-)
-
-  # ── Critic C: Audience Proxy ────────────────────────────────────────────
-  PROMPT_CRITIC_AUDIENCE=$(cat <<PROMPT_END
-You are a DEVELOPER WHO KNOWS BASIC BITCOIN but NOT the specific topic of this episode. You are the TARGET AUDIENCE. You're watching this for the first time.
-
-${SHARED_CRITIQUE_CONTEXT}
-
-YOUR FOCUS — evaluate as a first-time viewer. Score each 1-10:
-
-1. HOOK — does the opening grab attention? Does scene 2 start from familiar ground, or does it throw jargon at you?
-2. TEACHING FLOW — one idea per scene? Progressive reveal? Or does it dump information? Can you follow the logic from scene to scene?
-3. TEXT RULES — one sentence per heading? Max ~15 words? Or are there walls of text that would fly by in a video?
-4. EMOTIONAL ARC — do you feel curiosity → confusion → aha → satisfaction? Is there a clear highlight/aha scene? Where does the "wait, really?!" moment land?
-5. THE "SO WHAT?" TEST — after watching, do you understand WHY this matters? Is there a "why is this a big deal?" beat?
-
-Walk through the episode scene by scene and narrate your experience as a viewer:
-- Scene 1: "I see... this makes me think..."
+SCENE-BY-SCENE WALKTHROUGH — narrate your experience as a first-time viewer:
+- Scene 1: "I see... this makes me feel..."
 - Scene 2: "OK so this is about... I'm curious because..."
-- (etc.)
+- (continue for every scene)
 - Flag any scene where you'd lose interest, get confused, or feel talked down to.
-- If characters appear: Do Alice & Bob feel like they're having a real conversation, or is it forced? Does the dialogue help you understand, or does it slow things down? Are their emotions appropriate for the moment?
+- Flag any scene where you feel a concept was skipped or assumed.
+- If characters appear: Does the dialogue feel like a real conversation? Does it help you understand or slow things down?
 
-OVERALL AUDIENCE SCORE: X/20 (weighted: hook 4pts, teaching 4pts, text 4pts, arc 4pts, so-what 4pts)
+OVERALL STORYTELLING SCORE: X/60
 
-LIST specific audience issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE
+LIST specific storytelling issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE.
+For each issue, note which category (hook/teaching/text/arc/impact) it falls under.
 
-Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-audience-iter${ITERATION}.md
+Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-story-iter${ITERATION}.md
 
-At the very end, output EXACTLY: AUDIENCE_SCORE: <number>
+At the very end, output EXACTLY: STORY_SCORE: <number>
 PROMPT_END
 )
 
-  # ── Launch all 3 critics in parallel ────────────────────────────────────
-  log "Launching 3 parallel critics..."
+  # ── Launch 2 critics in parallel ────────────────────────────────────────
+  log "Launching 2 parallel critics (quality + storytelling)..."
 
-  bg_claude "critique-visual-iter${ITERATION}" "$PROMPT_CRITIC_VISUAL" "$PLANNER_TOOLS"
-  PID_CV=$!
-  bg_claude "critique-tech-iter${ITERATION}" "$PROMPT_CRITIC_TECH" "$PLANNER_TOOLS"
-  PID_CT=$!
-  bg_claude "critique-audience-iter${ITERATION}" "$PROMPT_CRITIC_AUDIENCE" "$PLANNER_TOOLS"
-  PID_CA=$!
+  bg_claude "critique-quality-iter${ITERATION}" "$PROMPT_CRITIC_QUALITY" "$PLANNER_TOOLS"
+  PID_CQ=$!
+  bg_claude "critique-story-iter${ITERATION}" "$PROMPT_CRITIC_STORY" "$PLANNER_TOOLS"
+  PID_CS=$!
 
-  wait_group "Parallel critique (3 personas)" "$PID_CV" "$PID_CT" "$PID_CA"
-  CRITIQUE_COST=$(sum_costs "critique-visual-iter${ITERATION}" "critique-tech-iter${ITERATION}" "critique-audience-iter${ITERATION}")
+  wait_group "Parallel critique (2 personas)" "$PID_CQ" "$PID_CS"
+  CRITIQUE_COST=$(sum_costs "critique-quality-iter${ITERATION}" "critique-story-iter${ITERATION}")
   log "Critique cost: \$${CRITIQUE_COST}"
 
   # ── Merge critiques ─────────────────────────────────────────────────────
 
-  CRIT_VISUAL=$(read_artifact "critique-visual-iter${ITERATION}.md")
-  CRIT_TECH=$(read_artifact "critique-tech-iter${ITERATION}.md")
-  CRIT_AUDIENCE=$(read_artifact "critique-audience-iter${ITERATION}.md")
+  CRIT_QUALITY=$(read_artifact "critique-quality-iter${ITERATION}.md")
+  CRIT_STORY=$(read_artifact "critique-story-iter${ITERATION}.md")
 
   run_phase "critique-merge-iter${ITERATION}" "$(cat <<PROMPT_END
-You are merging critiques from three specialist reviewers into a single prioritized critique.
+You are merging critiques from two specialist reviewers into a single prioritized critique.
 
----VISUAL DESIGNER CRITIQUE---
-${CRIT_VISUAL}
----END VISUAL---
+---QUALITY REVIEWER CRITIQUE---
+${CRIT_QUALITY}
+---END QUALITY---
 
----TECHNICAL REVIEWER CRITIQUE---
-${CRIT_TECH}
----END TECHNICAL---
-
----AUDIENCE PROXY CRITIQUE---
-${CRIT_AUDIENCE}
----END AUDIENCE---
+---STORYTELLING REVIEWER CRITIQUE---
+${CRIT_STORY}
+---END STORYTELLING---
 
 MERGE RULES:
-1. Extract scores: VISUAL_SCORE (out of 60) + TECHNICAL_SCORE (out of 30) + AUDIENCE_SCORE (out of 20) = RAW TOTAL/110. Then normalize: TOTAL = round(RAW * 100 / 110) to get a score out of 100.
+1. Extract scores: QUALITY_SCORE (out of 40) + STORY_SCORE (out of 60) = TOTAL/100
 2. If a score line is missing, estimate based on the critique content
 3. Consolidate all issues into a single list, removing duplicates
 4. When critics disagree, prioritize: MUST FIX issues from ANY critic stay MUST FIX
 5. Sort final issues: MUST FIX first, then SHOULD FIX, then NICE TO HAVE
 6. Note which persona flagged each issue (helps the fix planner understand the concern)
+7. The storytelling score carries MORE WEIGHT — a technically polished but poorly taught episode is worse than a rough but well-taught one
 
 Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-iter${ITERATION}.md
 
 Format:
 ## Scores
-- Visual Design: X/60 (from visual critic — includes signature visual depth)
-- Technical Quality: X/30 (from tech critic)
-- Audience Experience: X/20 (from audience proxy)
-- **TOTAL: X/100** (normalized from raw X/110)
+- Quality (visual + accuracy + motion): X/40 (from quality reviewer)
+- Storytelling (hook + teaching + text + arc + impact): X/60 (from storytelling reviewer)
+- **TOTAL: X/100**
 
 ## Consolidated Issues
 
 ### MUST FIX
-- [issue] (flagged by: visual/tech/audience)
+- [issue] (flagged by: quality/storytelling) — category: [specific sub-category]
 
 ### SHOULD FIX
-- [issue] (flagged by: visual/tech/audience)
+- [issue] (flagged by: quality/storytelling)
 
 ### NICE TO HAVE
-- [issue] (flagged by: visual/tech/audience)
+- [issue] (flagged by: quality/storytelling)
 
-## Audience Walkthrough Summary
-[Key moments from the audience proxy's scene-by-scene narration — where did they get confused or lose interest?]
+## Storytelling Walkthrough Summary
+[Key moments from the storytelling reviewer's scene-by-scene narration — where did they get confused, lose interest, or feel the aha moment?]
 
 At the very end, output EXACTLY this line (machine-parsed):
 QUALITY_SCORE: <total number>
@@ -1660,6 +1680,15 @@ PROMPT_END
 
   if [ "$SCORE" -ge "$QUALITY_THRESHOLD" ]; then
     log "Quality threshold met ($SCORE >= $QUALITY_THRESHOLD) — proceeding"
+    break
+  fi
+
+  # Early exit: if score is very low, the visual approach is fundamentally wrong.
+  # Polishing won't save it — flag for human review instead of wasting tokens.
+  if [ "$SCORE" -lt 40 ] && [ "$ITERATION" -ge 1 ]; then
+    log "⚠ Score $SCORE is below 40 — visual approach may be fundamentally wrong."
+    log "  Stopping critique loop. Review the episode manually and consider rebuilding"
+    log "  with a different creative vision (different visual approach, layout, or mood)."
     break
   fi
 
@@ -1776,6 +1805,8 @@ PROMPT_END
 done  # end critique→plan→rebuild loop
 
 log "Final quality score: $SCORE/100 after $ITERATION iteration(s)"
+
+fi  # end skip-critique check
 
 # ═════════════════════════════════════════════════════════════════════════════
 # VOICEOVER (Optional)  [Executor]
