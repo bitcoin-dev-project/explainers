@@ -14,6 +14,9 @@ One command in, finished episode out. Researched, storyboarded, animated, and qu
 
 Here's the full pipeline, **11 phases**, each producing a `.md` artifact that the next phase reads:
 
+Research → Director → Creative Vision → Storyboard → Director → Motion Script → Wireframe
+    → BUILD (expensive) → Visual QA → Hard Gates → CRITIQUE LOOP (very expensive) → Lessons
+
 | # | Phase | Who | What it does | Output |
 |---|-------|-----|-------------|--------|
 | 1 | **Research** (3 parallel) | 3 agents | Technical deep-dive, visual inspiration, narrative angle — all run simultaneously | `research-technical.md`, `research-visual.md`, `research-angle.md` |
