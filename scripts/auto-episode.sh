@@ -728,11 +728,13 @@ Use AS MANY SCENES as the topic needs. 15-25 scenes is typical.
 CRITICAL — CANVAS ZONES + CAMERA JOURNEY:
 After the scene list, include a "Canvas Layout" section. Read the "Camera System" section in CLAUDE.md. You MUST:
 1. Define CANVAS SIZE — how big is the world? (e.g., 400vw × 200vh). Size it to fit the content, no fixed limits.
-2. Define ZONES — named regions on the canvas where content lives (e.g., Zone A: 0-90vw, Zone B: 110-200vw, Zone C: 110-200vw y:110-200vh). Include gaps between zones.
+2. Define ZONES — named regions on the canvas where content lives. Leave **20-30vw gaps** between zones so neighbors never bleed into frame during zooms.
 3. Plan the CAMERA JOURNEY — for each scene, specify what the camera does: zoom in, pull back, pan left/right/up/down, backtrack to an earlier zone. Use focus(cx, cy, scale) or fitRect(x, y, w, h) helpers.
 4. The camera journey MUST be NON-LINEAR — backtrack to earlier zones, vary zoom from 0.3 to 2.5+, pan vertically not just horizontally. NOT a left-to-right slideshow.
-5. The FINAL SCENE must zoom ALL the way out (scale 0.3-0.5) to reveal the ENTIRE canvas — showing all visuals from the episode as one connected picture. This is the visual summary/payoff.
-6. Pass \`zones\` to Camera for the dev minimap — each zone gets a label and color for visual verification.
+5. Each shot must **zoom tight enough** that neighboring zones are fully off-screen. If you can see the edge of another zone, zoom tighter or increase the gap.
+6. **All content stays mounted** on the canvas — do NOT use sceneRange() to unmount visuals. The camera controls what's visible. This allows backtracking and the final reveal.
+7. The FINAL SCENE must zoom ALL the way out (scale 0.3-0.5) to reveal the ENTIRE canvas — showing all visuals from the episode as one connected picture. This is the visual summary/payoff.
+8. Pass \`zones\` to Camera for the dev minimap — each zone gets a label and color for visual verification.
 
 This creates dynamic, cinematic camera movement. The dev minimap catches off-screen content during development.
 
@@ -1451,7 +1453,7 @@ YOUR FOCUS — score each 1-10:
    - Are there any FAIL issues (off-screen elements)? Flag as MUST FIX.
    - Are there WARN issues (clipped elements)? Flag significant ones as SHOULD FIX.
    - If no report exists, run: node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa
-   - Also check: sceneRange guards match components' internal scene logic? Any empty scenes?
+   - Also check: visual components inside Camera should NOT use sceneRange() (breaks backtracking + final reveal). Any empty scenes?
    Score 1 if report has failures. Score 10 if report shows all scenes pass.
 
 OVERALL TECHNICAL SCORE: X/30

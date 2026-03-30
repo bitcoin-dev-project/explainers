@@ -129,10 +129,10 @@ const SHOTS = {
 };
 
 <Camera scene={s} shots={SHOTS} width="250vw" height="200vh" zones={ZONES}>
-  {/* Content at zone positions */}
-  {sceneRange(s, 0, 5) && <TitleVisual style={{ position: 'absolute', left: '5vw', top: '5vh' }} />}
-  {sceneRange(s, 4, 10) && <CoreVisual style={{ position: 'absolute', left: '115vw', top: '5vh' }} />}
-  {sceneRange(s, 6, 11) && <DetailVisual style={{ position: 'absolute', left: '115vw', top: '105vh' }} />}
+  {/* All content stays mounted — no sceneRange! Needed for backtracking + final reveal */}
+  <TitleVisual style={{ position: 'absolute', left: '5vw', top: '5vh' }} scene={s} />
+  <CoreVisual style={{ position: 'absolute', left: '115vw', top: '5vh' }} scene={s} />
+  <DetailVisual style={{ position: 'absolute', left: '115vw', top: '105vh' }} scene={s} />
 </Camera>
 
 {/* Text captions — OUTSIDE Camera, in screen space (always visible) */}
@@ -192,7 +192,17 @@ Arrange zones on the canvas to support the narrative:
 - **Radial** — center concept with satellite zones around it
 - **L-shape / scattered** — creates unpredictable camera paths
 
-Leave **10-20vw gaps** between zones to prevent cross-zone bleed during zooms.
+Leave **20-30vw gaps** between zones. This prevents neighboring zone content from bleeding into the viewport edges when the camera is focused on a zone. Bigger gaps = cleaner framing, zero cost to animation (spring physics doesn't depend on distance).
+
+### Zoom Tightness Rule
+When the camera focuses on a zone, **zoom tight enough that neighboring zones are fully off-screen.** If you can see the edge of another zone, the viewer is distracted by content that doesn't belong to the current moment. Use `focus()` with a high enough scale, or `fitRect()` to fit exactly the zone you want to show. Check the minimap — if the green viewport rect overlaps a neighboring zone marker, zoom tighter.
+
+### Content Stays Mounted — No sceneRange() on Visuals
+**Do NOT wrap visual components in `sceneRange()`.** All content stays on the canvas at all times. This is required for:
+- **Backtracking** — camera can revisit any zone at any time
+- **Final reveal** — the last scene zooms out to show the ENTIRE canvas with all visuals visible
+
+Content that isn't in the current viewport is simply off-screen — the camera controls what's visible, not mounting/unmounting. Use `sceneRange()` ONLY for text captions in screen space (outside Camera), not for visual components inside Camera.
 
 ### Dev Minimap
 Shows automatically in dev mode (bottom-right, above DevControls):
@@ -232,17 +242,15 @@ export default function VideoTemplate() {
       <Camera scene={s} shots={CAMERA_SHOTS} width="300vw" height="200vh"
         zones={ZONES} transition={EP_SPRINGS.camera}>
 
-        {/* Zone A: Introduction (scenes 0-4) */}
-        {sceneRange(s, 0, 5) && <BlockStrip scene={s} />}
+        {/* All visuals stay mounted — camera controls what's visible */}
+        {/* Zone A: Introduction */}
+        <BlockStrip scene={s} style={{ position: 'absolute', left: '5vw', top: '10vh' }} />
 
-        {/* Zone B: Core concept (scenes 5-9) */}
-        {sceneRange(s, 4, 10) && <UTXOHashmap scene={s} />}
+        {/* Zone B: Core concept (camera visits in scenes 5-9 AND backtracks in 16) */}
+        <UTXOHashmap scene={s} style={{ position: 'absolute', left: '120vw', top: '10vh' }} />
 
-        {/* Zone C: Resolution (scenes 10-13) */}
-        {sceneRange(s, 10, 14) && <HexRibbon scene={s} />}
-
-        {/* Revisit Zone B (scene 16) */}
-        {sceneRange(s, 16, 18) && <UTXOHashmap scene={s} />}
+        {/* Zone C: Resolution */}
+        <HexRibbon scene={s} style={{ position: 'absolute', left: '240vw', top: '10vh' }} />
       </Camera>
 
       {/* Text captions in screen space (outside Camera) */}
