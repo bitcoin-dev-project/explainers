@@ -64,7 +64,7 @@
 
 # ─── Args ────────────────────────────────────────────────────────────────────
 
-TOPIC="${1:?Usage: auto-episode.sh <topic> <ep_number> <slug> [--palette grayscale|brand|free] [--with-voice] [--full-auto] [--skip-critique] [--verbose]}"
+TOPIC="${1:?Usage: auto-episode.sh <topic> <ep_number> <slug> [--palette grayscale|brand|free] [--with-voice] [--full-auto] [--skip-wireframe] [--skip-critique] [--verbose]}"
 EP_NUM="${2:?Missing episode number}"
 SLUG="${3:?Missing slug (e.g., merkle-trees)}"
 
@@ -72,6 +72,7 @@ WITH_VOICE=false
 FULL_AUTO=false
 VERBOSE=false
 SKIP_CRITIQUE=false
+SKIP_WIREFRAME=false
 PALETTE="free"
 for arg in "${@:4}"; do
   case "$arg" in
@@ -79,6 +80,7 @@ for arg in "${@:4}"; do
     --full-auto)       FULL_AUTO=true ;;
     --verbose)         VERBOSE=true ;;
     --skip-critique)   SKIP_CRITIQUE=true ;;
+    --skip-wireframe)  SKIP_WIREFRAME=true ;;
     --palette)         echo "Error: --palette requires a value (grayscale|brand|free)"; exit 1 ;;
     --palette=*)       PALETTE="${arg#--palette=}" ;;
     *) echo "Unknown flag: $arg"; exit 1 ;;
@@ -302,6 +304,8 @@ run_phase() {
   fi
 
   local start_time=$(date +%s)
+  local start_timestamp=$(date '+%H:%M:%S')
+  log "▶ Phase $phase_name started at $start_timestamp"
   local raw_output="$WORK_DIR/${phase_name}_raw.json"
 
   local exit_code=0
@@ -422,6 +426,9 @@ run_phase() {
 
   log "✓ Phase $phase_name complete (${mins}m ${secs}s, \$${cost})"
 
+  # Save duration for summary
+  echo "${mins}m ${secs}s" > "$WORK_DIR/.duration_${phase_name}"
+
   # Mark phase as done (for resume)
   touch "$WORK_DIR/.done_${phase_name}"
 }
@@ -448,6 +455,8 @@ read_artifact() {
 bg_claude() {
   local name="$1" prompt="$2" tools="${3:-$EXECUTOR_TOOLS}"
   local raw="$WORK_DIR/${name}_raw.json"
+  log "▶ Phase $name started at $(date '+%H:%M:%S') (background)"
+  local bg_start=$(date +%s)
   (
     cd "$PROJECT_DIR" || exit 1
     if claude -p "$prompt" --allowedTools "$tools" --output-format json > "$raw" 2>&1; then
@@ -457,6 +466,11 @@ bg_claude() {
       echo "$cost" > "$WORK_DIR/.cost_${name}"
     fi
     rm -f "$raw"
+    local bg_end=$(date +%s)
+    local bg_dur=$(( bg_end - bg_start ))
+    local bg_mins=$(( bg_dur / 60 ))
+    local bg_secs=$(( bg_dur % 60 ))
+    echo "${bg_mins}m ${bg_secs}s" > "$WORK_DIR/.duration_${name}"
     touch "$WORK_DIR/.done_${name}"
   ) &
 }
@@ -543,6 +557,7 @@ echo "║                                                                    ║
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 echo ""
 
+PIPELINE_START=$(date +%s)
 log "Pipeline started at $(date)"
 log "Topic: $TOPIC | Episode: $EP_NUM | Slug: $SLUG | Voice: $WITH_VOICE | Palette: $PALETTE"
 
@@ -1219,7 +1234,9 @@ fi
 # The wireframe is built and QA'd. Let the user WATCH the camera journey
 # with placeholder boxes before we spend tokens building real components.
 
-if ! checkpoint "WIREFRAME — Watch the camera journey" "feedback-wireframe.txt"; then
+if [ "$SKIP_WIREFRAME" = "true" ]; then
+  log "Checkpoint 'WIREFRAME' — skipped (--skip-wireframe)"
+elif ! checkpoint "WIREFRAME — Watch the camera journey" "feedback-wireframe.txt"; then
   # User chose 'r' (redo) — delete wireframe artifacts and re-run
   log "Redoing wireframe phase..."
   rm -f "$WORK_DIR/.done_wireframe" "$WORK_DIR/.done_wireframe-qa"
@@ -2180,4 +2197,25 @@ echo "║                                                                    ║
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 echo ""
 
-log "Pipeline completed at $(date)"
+# ── Phase Duration Summary ──────────────────────────────────────────────────
+PIPELINE_END=$(date +%s)
+PIPELINE_DUR=$(( PIPELINE_END - PIPELINE_START ))
+PIPELINE_MINS=$(( PIPELINE_DUR / 60 ))
+PIPELINE_SECS=$(( PIPELINE_DUR % 60 ))
+
+echo ""
+echo "┌──────────────────────────────────────────────────────────────────────┐"
+echo "│  PHASE DURATION SUMMARY                                            │"
+echo "├──────────────────────────────────────────────────────────────────────┤"
+for dur_file in "$WORK_DIR"/.duration_*; do
+  [ -f "$dur_file" ] || continue
+  phase_label=$(basename "$dur_file" | sed 's/^\.duration_//')
+  phase_dur=$(cat "$dur_file")
+  printf "│  %-40s %10s          │\n" "$phase_label" "$phase_dur"
+done
+echo "├──────────────────────────────────────────────────────────────────────┤"
+printf "│  %-40s %10s          │\n" "TOTAL PIPELINE" "${PIPELINE_MINS}m ${PIPELINE_SECS}s"
+echo "└──────────────────────────────────────────────────────────────────────┘"
+echo ""
+
+log "Pipeline completed at $(date) (total: ${PIPELINE_MINS}m ${PIPELINE_SECS}s)"
