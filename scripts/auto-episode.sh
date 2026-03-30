@@ -22,19 +22,25 @@
 #   6. Build Custom Components
 #   7. Implement VideoTemplate (with cross-episode lessons fed in)
 #   8. Visual QA
-#   8.5 Structural Hard Gates (9 automated grep checks — pre-critique)
+#   8.5 Structural Hard Gates (8 automated grep checks — pre-critique)
 #   9. Critique (3 parallel: visual designer + tech reviewer + audience proxy) → Merge
 #      → Fix Plan → Rebuild (loop up to 3x)
 #   10. Voiceover (optional)
 #   11. Cross-episode learning extraction (append-only episode log + pattern consolidation)
 #
 # Usage:
-#   ./scripts/auto-episode.sh <topic> <episode_number> <slug> [--with-voice] [--full-auto]
+#   ./scripts/auto-episode.sh <topic> <episode_number> <slug> [--palette=grayscale|brand|free] [--with-voice] [--full-auto]
+#
+# Palette modes:
+#   grayscale — black/white/grays only, one accent color allowed (data-focused, cinematic)
+#   brand     — BDP brand palette only (orange, blue, green, pink, purple + neutrals)
+#   free      — no color restrictions, AI picks what fits (DEFAULT)
 #
 # Examples:
 #   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees
 #   ./scripts/auto-episode.sh "Timewarp Attack" 8 timewarp --with-voice
-#   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --full-auto
+#   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --palette=grayscale
+#   ./scripts/auto-episode.sh "SHA-256" 9 sha256 --palette=brand --full-auto
 #   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --verbose
 #
 # Output:
@@ -50,21 +56,47 @@
 
 # ─── Args ────────────────────────────────────────────────────────────────────
 
-TOPIC="${1:?Usage: auto-episode.sh <topic> <ep_number> <slug> [--with-voice] [--full-auto] [--verbose]}"
+TOPIC="${1:?Usage: auto-episode.sh <topic> <ep_number> <slug> [--palette grayscale|brand|free] [--with-voice] [--full-auto] [--verbose]}"
 EP_NUM="${2:?Missing episode number}"
 SLUG="${3:?Missing slug (e.g., merkle-trees)}"
 
 WITH_VOICE=false
 FULL_AUTO=false
 VERBOSE=false
+PALETTE="free"
 for arg in "${@:4}"; do
   case "$arg" in
     --with-voice) WITH_VOICE=true ;;
     --full-auto)  FULL_AUTO=true ;;
     --verbose)    VERBOSE=true ;;
+    --palette)    echo "Error: --palette requires a value (grayscale|brand|free)"; exit 1 ;;
+    --palette=*)  PALETTE="${arg#--palette=}" ;;
     *) echo "Unknown flag: $arg"; exit 1 ;;
   esac
 done
+
+# Validate palette mode
+case "$PALETTE" in
+  grayscale|brand|free) ;;
+  *) echo "Error: --palette must be grayscale, brand, or free (got: $PALETTE)"; exit 1 ;;
+esac
+
+# ─── Palette instructions (fed into creative vision + critique prompts) ──────
+
+case "$PALETTE" in
+  grayscale)
+    PALETTE_INSTRUCTION="COLOR MODE: GRAYSCALE. Use ONLY black, white, and shades of gray. You may use ONE single accent color (e.g., red, orange, or blue) sparingly for emphasis — highlights, key data, or the aha moment. Everything else must be monochrome. This creates a stark, data-focused, cinematic look. Define EP_COLORS using grays (#111, #333, #666, #999, #ccc, #eee, etc.) plus your single accent."
+    PALETTE_CRITIQUE="PALETTE MODE: grayscale. Verify the episode uses ONLY black/white/grays with at most ONE accent color for emphasis. Flag any use of multiple chromatic colors as MUST FIX."
+    ;;
+  brand)
+    PALETTE_INSTRUCTION="COLOR MODE: BRAND PALETTE. Use colors from the BDP brand guidelines (references/brand-guidelines.md). Primary: BDP Orange #EB5234. Accents: Yellow #EB9B34, Green #0E9158, Blue #396BEB, Pink #F382AD, Purple #7762B9 (and their light variants). Neutrals: #F6F0E6, #EFE9DE, #E1DBD0, #201E1E. Pick 2-3 of these that fit the episode's mood. Background can be any brand neutral or dark text color. Do NOT invent colors outside this palette."
+    PALETTE_CRITIQUE="PALETTE MODE: brand. Verify ALL colors come from the BDP brand palette (references/brand-guidelines.md). Flag any off-brand colors as SHOULD FIX."
+    ;;
+  free)
+    PALETTE_INSTRUCTION="COLOR MODE: FREE. Choose whatever colors best serve the episode's mood and topic. No restrictions — go dark, neon, pastel, warm, cold, whatever fits. The only requirement is that you define your choices in EP_COLORS in constants.ts so they're intentional, not random."
+    PALETTE_CRITIQUE="PALETTE MODE: free. No color restrictions. Just verify EP_COLORS is defined in constants.ts and the palette feels intentional and harmonious (not random)."
+    ;;
+esac
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
 
@@ -350,6 +382,7 @@ echo "║                                                                    ║
 echo "║   Topic:   $TOPIC"
 echo "║   Episode: $EP_NUM ($SLUG)"
 echo "║   Voice:   $WITH_VOICE"
+echo "║   Palette: $PALETTE"
 echo "║   Verbose: $VERBOSE"
 echo "║   Output:  $EP_PATH/"
 echo "║                                                                    ║"
@@ -370,7 +403,7 @@ echo "╚═══════════════════════�
 echo ""
 
 log "Pipeline started at $(date)"
-log "Topic: $TOPIC | Episode: $EP_NUM | Slug: $SLUG | Voice: $WITH_VOICE"
+log "Topic: $TOPIC | Episode: $EP_NUM | Slug: $SLUG | Voice: $WITH_VOICE | Palette: $PALETTE"
 
 # ═════════════════════════════════════════════════════════════════════════════
 # PHASE 1: DEEP RESEARCH  [3 Parallel Agents → Merge]
@@ -657,11 +690,12 @@ RULES:
 - The core visual MUST NOT use CE (CanvasElement). Use GSAP timeline, SVG path morphing, CSS keyframes, Canvas 2D, or morph()
 - Use the Camera system for layout — place content in zones on a large canvas, Camera pans/zooms between them freely. The final scene MUST zoom out to reveal the entire canvas as a visual summary.
 - Define episode-specific EP_COLORS and EP_SPRINGS in constants.ts
+- ${PALETTE_INSTRUCTION}
 - The director already decided the teaching approach — your job is the visual execution
 
 For your chosen concept, detail:
 a) THE SIGNATURE VISUAL — the ONE custom animation that makes this episode instantly recognizable
-b) COLOR PALETTE — 2-3 accent colors beyond brand orange that match the mood
+b) COLOR PALETTE — define EP_COLORS following the color mode above
 c) LAYOUT PATTERN — NOT centered-stack-with-heading — what serves THIS content?
 d) ANIMATION PERSONALITY — spring configs, timing, motion style that matches the topic
 e) CUSTOM COMPONENTS NEEDED — what must be built from scratch for this episode
@@ -1297,9 +1331,6 @@ gate_check "Custom springs EP_SPRINGS defined" \
 gate_check "Camera system used for layout" \
   "grep -qE '<Camera' '${EP_PATH}/VideoTemplate.tsx'"
 
-gate_check "Background is NOT default beige #E6D3B3" \
-  "! grep -q \"#E6D3B3\" '${EP_PATH}/constants.ts'"
-
 gate_check "3+ camera shots for dynamic movement" \
   "[ \$(grep -cE 'focus\(|fitRect\(|scale:' '${EP_PATH}/VideoTemplate.tsx' '${EP_PATH}/constants.ts' 2>/dev/null | awk -F: '{s+=\$NF}END{print s}') -ge 3 ]"
 
@@ -1310,7 +1341,7 @@ gate_check "Has custom visual component (not just VideoTemplate)" \
   "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' | wc -l | tr -d ' ') -ge 1 ]"
 
 log ""
-log "Hard gates: $((9 - GATE_FAILS))/9 passed"
+log "Hard gates: $((8 - GATE_FAILS))/8 passed"
 
 if [ "$GATE_FAILS" -gt 0 ]; then
   log "⚠ $GATE_FAILS structural violation(s) — auto-fixing before critique"
@@ -1328,7 +1359,6 @@ Fix instructions per rule:
 - GSAP must be used: import { useSceneGSAP } from '@/lib/video' and add at least one choreographed sequence
 - EP_COLORS / EP_SPRINGS: define in constants.ts with episode-specific values (not generic)
 - Camera: import { Camera, focus, fitRect } from '@/lib/video' — wrap visual content in Camera with zones
-- No beige default: change bg in EP_COLORS to a color that fits the episode mood
 - 3+ camera shots: define at least 3 distinct camera positions using focus()/fitRect() for dynamic movement
 - Themed CE: import ceThemes from '@/lib/video', call createThemedCE with a theme (blurIn, clipCircle, glitch, etc.)
 - Custom component: the episode's core visual must be a separate .tsx file, not inline in VideoTemplate
@@ -1340,7 +1370,7 @@ PROMPT_END
   # Re-run gates to verify fixes
   log "Re-checking hard gates after fix..."
   GATE_FAILS_POST=0
-  for check_name in "No bare CE" "GSAP used" "EP_COLORS" "EP_SPRINGS" "Camera" "Not beige" "3+ camera shots" "Themed CE" "Custom component"; do
+  for check_name in "No bare CE" "GSAP used" "EP_COLORS" "EP_SPRINGS" "Camera" "3+ camera shots" "Themed CE" "Custom component"; do
     # Just count — detailed log already happened above
     true
   done
@@ -1426,7 +1456,7 @@ YOUR FOCUS — score each 1-10:
 1. VISUAL ORIGINALITY — looks different from all episodes in the Episode Registry? Custom signature visual? Or is it another CE fade-in episode?
 2. ANIMATION VARIETY — does the core visual use GSAP, SVG morph, Canvas, CSS keyframes? CE should only be for text/labels. Score 1 if everything uses CE.
 3. CAMERA MOVEMENT — does the episode have dynamic, non-linear camera movement? Zoom in/out (scale range 0.3-2.5+)? Backtrack to earlier zones? Vertical pans? Does the FINAL SCENE zoom out to reveal the entire canvas as a visual summary? Static or left-to-right-only = low score.
-4. CUSTOM PALETTE — EP_COLORS and EP_SPRINGS in constants.ts? Background NOT default beige?
+4. CUSTOM PALETTE — EP_COLORS and EP_SPRINGS in constants.ts? ${PALETTE_CRITIQUE}
 5. VISUAL POLISH — if screenshots available, READ THEM: layout balance, spacing, color harmony, text readability, professional quality. Would this stand up next to 3Blue1Brown?
 BONUS: If characters (Alice/Bob) are used — do they have varied emotions across scenes? Are gestures used meaningfully (not all 'none')? Do they look at each other during dialogue? Are speech bubbles readable and short? Do characters add personality or feel like decoration?
 
@@ -1877,7 +1907,7 @@ echo "║    Research (3 parallel) → Merge → Director Review                
 echo "║    → Creative Vision → Storyboard → Director Review               ║"
 echo "║    → Motion Script → Wireframe → Wireframe QA                     ║"
 echo "║    → Build Components → Build Template → Visual QA                 ║"
-echo "║    → Hard Gates (9 structural checks) → Auto-fix if needed         ║"
+echo "║    → Hard Gates (8 structural checks) → Auto-fix if needed         ║"
 echo "║    → Critique (3 parallel) → Merge → Plan → Rebuild (loop)        ║"
 echo "║    → Lessons Learned (w/ pattern consolidation)                    ║"
 echo "║                                                                    ║"
