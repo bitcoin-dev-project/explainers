@@ -189,8 +189,7 @@ export function CE({
   const MotionTag = motion[Tag] as any;
 
   // Resolve defaults: explicit prop > theme > built-in default
-  // ⚠️ Built-in defaults exist for backward compatibility with ep1-6.
-  // NEW EPISODES: always use createThemedCE() or pass a theme prop — never rely on these defaults.
+  // ⚠️ Built-in defaults — always use createThemedCE() instead of bare CE.
   const builtinInitial = Tag === 'g' ? { opacity: 0 } : { opacity: 0, y: 15 };
   const builtinAnimate = Tag === 'g' ? { opacity: 1 } : { opacity: 1, y: 0 };
   const builtinExit = { opacity: 0 };

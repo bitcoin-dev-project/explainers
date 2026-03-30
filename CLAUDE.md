@@ -549,7 +549,7 @@ Answer the Visual Brief questions (see above), then:
 7. Preview: `npm run dev:client` → navigate to `#ep<N>`
 8. Record: `node scripts/record.mjs`
 
-**Legacy episodes** (ep1-ep6) use older patterns. Don't convert them.
+Episodes ep1-ep10 use older patterns. Ignore them — only follow the rules in this file.
 
 ## Voiceover (Opt-In)
 

@@ -40,7 +40,7 @@ export type { CETheme } from './canvas';
 export { Camera, focus, fitRect, visibility } from './camera';
 export type { CameraShot, CameraZone } from './camera';
 
-// Stage/Act — declarative layout system (new episodes, ep13+)
+// Stage/Act — declarative layout system (deprecated, use Camera instead)
 export { Stage, Act } from './stage';
 export type { StageProps, ActProps, ActShot } from './stage';
 

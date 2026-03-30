@@ -1,8 +1,8 @@
 /**
- * Stage/Act — Declarative camera system that eliminates manual positioning math.
+ * Stage/Act — Declarative layout system (DEPRECATED).
  *
- * Instead of placing elements at absolute canvas coordinates and computing
- * camera shots with focus(cx, cy, scale), you declare Acts and Stage auto-frames them.
+ * Do not use. Use Camera (camera.tsx) instead — it provides dynamic,
+ * cinematic movement with free-form pan/zoom and a final full-canvas reveal.
  *
  * Usage:
  *   <Stage scene={s}>
