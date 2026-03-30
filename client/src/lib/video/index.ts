@@ -36,9 +36,9 @@ export {
 export { CE, morph, sceneRange, createThemedCE, ceThemes } from './canvas';
 export type { CETheme } from './canvas';
 
-// Camera — viewport pan/zoom + shot helpers (legacy, eps 7-12)
-export { Camera, focus, fitRect } from './camera';
-export type { CameraShot } from './camera';
+// Camera — viewport pan/zoom + shot helpers + dev minimap
+export { Camera, focus, fitRect, visibility } from './camera';
+export type { CameraShot, CameraZone } from './camera';
 
 // Stage/Act — declarative layout system (new episodes, ep13+)
 export { Stage, Act } from './stage';

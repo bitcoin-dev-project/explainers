@@ -27,6 +27,16 @@
  *
  *   // Auto-fit a rect (x:100, y:10, w:80, h:60) with 10% padding:
  *   shots: { 5: fitRect(100, 10, 80, 60) }
+ *
+ * Dev minimap:
+ *   Shows a bird's-eye view of the canvas with the viewport rect highlighted.
+ *   Green = fully within canvas, red = viewport extends past canvas edge.
+ *   Pass `zones` to mark content regions on the minimap:
+ *
+ *   <Camera zones={[
+ *     { label: 'A', x: 0, y: 0, w: 90, h: 100, color: '#3b82f6' },
+ *     { label: 'B', x: 105, y: 0, w: 80, h: 100, color: '#ef4444' },
+ *   ]} ...>
  */
 
 import { motion } from 'framer-motion';
@@ -38,6 +48,21 @@ export interface CameraShot {
   y?: number | string;
   scale?: number;
   rotate?: number;
+}
+
+export interface CameraZone {
+  /** Short label for the zone */
+  label: string;
+  /** Left edge (vw) */
+  x: number;
+  /** Top edge (vh) */
+  y: number;
+  /** Width (vw) */
+  w: number;
+  /** Height (vh) */
+  h: number;
+  /** Zone color */
+  color: string;
 }
 
 /* ── Shot helpers ─────────────────────────────────────────────── */
@@ -123,6 +148,180 @@ export function fitRect(
   return focus(x + w / 2, y + h / 2, { scale, rotate });
 }
 
+/**
+ * Check if a canvas rect is visible in a given shot.
+ * Returns the fraction of the rect that's on-screen (0 = invisible, 1 = fully visible).
+ *
+ * @param rect - Canvas region to check { x, y, w, h } in vw/vh
+ * @param shot - Camera shot to test against
+ */
+export function visibility(
+  rect: { x: number; y: number; w: number; h: number },
+  shot: CameraShot,
+): number {
+  const shotX = typeof shot.x === 'string' ? parseFloat(shot.x) : (shot.x ?? 0);
+  const shotY = typeof shot.y === 'string' ? parseFloat(shot.y) : (shot.y ?? 0);
+  const sc = shot.scale ?? 1;
+
+  // Viewport in canvas coordinates
+  const vpL = -shotX / sc;
+  const vpT = -shotY / sc;
+  const vpR = vpL + 100 / sc;
+  const vpB = vpT + 100 / sc;
+
+  // Content rect
+  const cL = rect.x, cT = rect.y, cR = rect.x + rect.w, cB = rect.y + rect.h;
+
+  // Intersection
+  const iL = Math.max(vpL, cL), iT = Math.max(vpT, cT);
+  const iR = Math.min(vpR, cR), iB = Math.min(vpB, cB);
+  if (iR <= iL || iB <= iT) return 0;
+
+  const intersectionArea = (iR - iL) * (iB - iT);
+  const contentArea = rect.w * rect.h;
+  return contentArea > 0 ? intersectionArea / contentArea : 0;
+}
+
+/* ── Minimap (dev-only) ──────────────────────────────────────── */
+
+function Minimap({
+  canvasW,
+  canvasH,
+  shot,
+  zones,
+  sceneIndex,
+}: {
+  canvasW: number;
+  canvasH: number;
+  shot: CameraShot;
+  zones?: CameraZone[];
+  sceneIndex?: number;
+}) {
+  const shotX = typeof shot.x === 'string' ? parseFloat(shot.x) : (shot.x ?? 0);
+  const shotY = typeof shot.y === 'string' ? parseFloat(shot.y) : (shot.y ?? 0);
+  const sc = shot.scale ?? 1;
+
+  // Viewport rect in canvas coords
+  const vpL = -shotX / sc;
+  const vpT = -shotY / sc;
+  const vpW = 100 / sc;
+  const vpH = 100 / sc;
+
+  // Minimap pixel dimensions (correct aspect ratio for 16:9 viewport)
+  const vRatio = typeof window !== 'undefined'
+    ? window.innerWidth / window.innerHeight
+    : 16 / 9;
+  const canvasAspect = (canvasW / canvasH) * vRatio;
+  const mmW = 190;
+  const mmH = mmW / canvasAspect;
+
+  // Canvas-coord to minimap-pixel scale
+  const sX = mmW / canvasW;
+  const sY = mmH / canvasH;
+
+  // Viewport extends past canvas edge?
+  const isClipped = vpL < -1 || vpT < -1
+    || vpL + vpW > canvasW + 1
+    || vpT + vpH > canvasH + 1;
+
+  // Zone visibility in current shot
+  const zoneVis = zones?.map(z => visibility(z, shot)) ?? [];
+
+  return (
+    <div style={{
+      position: 'absolute',
+      bottom: 56,
+      right: 12,
+      width: mmW,
+      height: mmH,
+      border: '1px solid rgba(255,255,255,0.15)',
+      backgroundColor: 'rgba(0,0,0,0.8)',
+      borderRadius: 6,
+      zIndex: 100,
+      pointerEvents: 'none',
+      overflow: 'hidden',
+      backdropFilter: 'blur(4px)',
+    }}>
+      {/* Canvas outline */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        border: '1px dashed rgba(255,255,255,0.08)',
+        borderRadius: 5,
+      }} />
+
+      {/* Zone rects */}
+      {zones?.map((z, i) => {
+        const vis = zoneVis[i];
+        const isVisible = vis > 0.01;
+        return (
+          <div key={i} style={{
+            position: 'absolute',
+            left: z.x * sX,
+            top: z.y * sY,
+            width: z.w * sX,
+            height: z.h * sY,
+            backgroundColor: `${z.color}${isVisible ? '30' : '12'}`,
+            border: `1px solid ${z.color}${isVisible ? '80' : '30'}`,
+            borderRadius: 2,
+            transition: 'all 0.3s ease',
+          }}>
+            <span style={{
+              fontSize: 7,
+              color: isVisible ? z.color : `${z.color}60`,
+              padding: '0 2px',
+              fontFamily: 'monospace',
+              lineHeight: 1,
+              fontWeight: isVisible ? 700 : 400,
+            }}>
+              {z.label}
+            </span>
+          </div>
+        );
+      })}
+
+      {/* Viewport rect */}
+      <div style={{
+        position: 'absolute',
+        left: vpL * sX,
+        top: vpT * sY,
+        width: vpW * sX,
+        height: vpH * sY,
+        border: `2px solid ${isClipped ? '#ef4444' : '#22c55e'}`,
+        backgroundColor: isClipped ? 'rgba(239,68,68,0.06)' : 'rgba(34,197,94,0.06)',
+        borderRadius: 2,
+        transition: 'left 0.4s ease, top 0.4s ease, width 0.3s ease, height 0.3s ease, border-color 0.2s ease',
+      }} />
+
+      {/* Info bar */}
+      <div style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: '2px 5px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontSize: 7,
+        fontFamily: 'monospace',
+        color: 'rgba(255,255,255,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.4)',
+      }}>
+        <span>
+          {sceneIndex != null ? `s${sceneIndex} ` : ''}
+          x:{shotX.toFixed(0)} y:{shotY.toFixed(0)} {sc.toFixed(1)}x
+        </span>
+        <span>
+          {canvasW}vw×{canvasH}vh
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Camera Component ────────────────────────────────────────── */
+
 interface CameraProps {
   /** Current scene index from useVideoPlayer */
   scene: number;
@@ -134,6 +333,10 @@ interface CameraProps {
   height?: string;
   /** Transition spring (default: smooth, slow pan) */
   transition?: Record<string, any>;
+  /** Named canvas zones shown on the dev minimap */
+  zones?: CameraZone[];
+  /** Show minimap overlay (default: auto — shown in dev, hidden in prod) */
+  minimap?: boolean;
   children: ReactNode;
 }
 
@@ -143,12 +346,21 @@ export function Camera({
   width = '200vw',
   height = '200vh',
   transition,
+  zones,
+  minimap,
   children,
 }: CameraProps) {
   // Find the active shot (highest scene key <= current scene)
   const keys = Object.keys(shots).map(Number).sort((a, b) => a - b);
   const active = [...keys].reverse().find(k => scene >= k);
   const shot = active !== undefined ? shots[active] : {};
+
+  const showMinimap = minimap ?? (
+    typeof import.meta !== 'undefined' && (import.meta as any).env?.DEV
+  );
+
+  const canvasW = parseFloat(width) || 200;
+  const canvasH = parseFloat(height) || 200;
 
   return (
     <div
@@ -183,6 +395,16 @@ export function Camera({
       >
         {children}
       </motion.div>
+
+      {showMinimap && (
+        <Minimap
+          canvasW={canvasW}
+          canvasH={canvasH}
+          shot={shot}
+          zones={zones}
+          sceneIndex={active}
+        />
+      )}
     </div>
   );
 }
