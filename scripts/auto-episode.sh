@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# auto-episode.sh v2 — Multi-agent episode generation pipeline
+# auto-episode.sh v3 — Streamlined multi-agent episode generation pipeline
 #
 # Creates a complete Bitcoin explainer episode from topic to finished code.
 # Uses parallel agents, specialized personas, and iterative quality loops.
@@ -8,48 +8,54 @@
 # Architecture:
 #   Planner (Director)  — thinks, reviews, steers (CAN'T edit code)
 #   Executor (Builder)  — implements, builds, fixes (CAN edit code)
-#   Parallel agents     — 3 agents run simultaneously (research, critique)
+#   Parallel agents     — run simultaneously (research, critique)
 #   Handoff files       — each phase writes .md artifacts the next reads
 #
-# Pipeline flow:
+# Pipeline flow (default):
 #   1. Research (3 parallel: technical + visual + angle) → Merge
 #   2. Director Research Review
 #   3. Creative Vision
 #   4. Storyboard
-#   5. Director Storyboard Review
-#   5.5 Motion Script (timestamped animation spec)
-#   5.7 Wireframe Build + QA (verify positioning before real build)
-#   ★  CHECKPOINT 1 — opens browser, you watch wireframe, approve/redirect
-#   6. Build Custom Components
-#   7. Implement VideoTemplate (with cross-episode lessons fed in)
-#   ★  CHECKPOINT 2 — opens browser, you watch real episode, approve/redirect
-#   8. Visual QA
-#   8.5 Structural Hard Gates (8 automated grep checks — pre-critique)
-#   9. Critique (3 parallel: visual + tech + audience) → Merge
-#      → Fix Plan → Rebuild (loop up to 3x)
-#   10. Voiceover (optional)
-#   11. Cross-episode learning extraction (append-only episode log + pattern consolidation)
+#   5. Director Review + Motion Script (merged, one call)
+#   6. Build (components + VideoTemplate in one pass)
+#   ★  CHECKPOINT — opens browser, you watch episode, approve/redirect
+#   7. Visual QA + Structural Hard Gates
+#   8. Critique (2-3 parallel critics) → Fix → Rebuild (1 iteration default)
+#   9. Voiceover (optional, --with-voice)
+#   10. Lessons learned (async, skippable)
 #
-# Checkpoints:
-#   Both checkpoints open the episode in your browser so you can WATCH it.
-#   [y] = looks good, continue   [n] = type feedback, injected into next phase
-#   [r] = redo this phase from scratch
-#   Skipped when --full-auto is passed.
+# Development loops:
+#   --draft         Run full pipeline but stop after build checkpoint.
+#                   See the episode fast, then decide whether to polish.
+#   --rebuild       Skip planning, re-run build only using existing artifacts.
+#                   For testing toolkit/CLAUDE.md changes on an existing episode.
+#   --from=<phase>  Resume from a specific phase (deletes downstream markers).
+#                   Valid phases: research, director-research, creative-vision,
+#                   storyboard, director-storyboard, build-components, visual-qa, critique
 #
-# Usage:
-#   ./scripts/auto-episode.sh <topic> <episode_number> <slug> [--palette=grayscale|brand|free] [--with-voice] [--full-auto]
+# Presets:
+#   --fast          1 critique iteration, 2 critics, skip lessons
+#   --thorough      3 critique iterations, 3 critics
+#   (default)       1 critique iteration, 3 critics
 #
-# Palette modes:
-#   grayscale — black/white/grays only, one accent color allowed (data-focused, cinematic)
-#   brand     — BDP brand palette only (orange, blue, green, pink, purple + neutrals)
-#   free      — no color restrictions, AI picks what fits (DEFAULT)
+# Flags:
+#   --palette=MODE  grayscale | brand | free (default: free)
+#   --with-voice    Generate voiceover transcript + audio sync
+#   --full-auto     Skip all human checkpoints
+#   --max-critique=N  Number of critique→rebuild iterations (default: 1)
+#   --critics=N     Number of parallel critics: 2 or 3 (default: 3)
+#   --skip-critique Skip critique loop entirely
+#   --skip-lessons  Skip cross-episode learning extraction
+#   --verbose       Stream Claude output in real-time
 #
 # Examples:
 #   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees
-#   ./scripts/auto-episode.sh "Timewarp Attack" 8 timewarp --with-voice
-#   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --palette=grayscale
+#   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --draft
+#   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --rebuild
+#   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --from=build-components
+#   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --fast
+#   ./scripts/auto-episode.sh "Timewarp Attack" 8 timewarp --thorough --with-voice
 #   ./scripts/auto-episode.sh "SHA-256" 9 sha256 --palette=brand --full-auto
-#   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --verbose
 #
 # Output:
 #   - Episode code in client/src/episodes/ep<N>-<slug>/
@@ -57,14 +63,12 @@
 #   - Pipeline log in .auto-episode/ep<N>-<slug>/pipeline.log
 #   - Cumulative lessons in .auto-episode/lessons-learned.md
 #
-# The pipeline pauses after critique unless --full-auto is passed.
-#
 
 # No set -e — we handle errors explicitly per phase
 
 # ─── Args ────────────────────────────────────────────────────────────────────
 
-TOPIC="${1:?Usage: auto-episode.sh <topic> <ep_number> <slug> [--palette grayscale|brand|free] [--with-voice] [--full-auto] [--skip-wireframe] [--skip-critique] [--verbose]}"
+TOPIC="${1:?Usage: auto-episode.sh <topic> <ep_number> <slug> [--draft] [--rebuild] [--from=<phase>] [--fast] [--thorough] [--palette=grayscale|brand|free] [--with-voice] [--full-auto] [--max-critique=N] [--critics=N] [--skip-critique] [--skip-lessons] [--verbose]}"
 EP_NUM="${2:?Missing episode number}"
 SLUG="${3:?Missing slug (e.g., merkle-trees)}"
 
@@ -72,20 +76,78 @@ WITH_VOICE=false
 FULL_AUTO=false
 VERBOSE=false
 SKIP_CRITIQUE=false
-SKIP_WIREFRAME=false
+SKIP_WIREFRAME=true    # wireframe off by default (preview route not yet built)
 PALETTE="free"
+MAX_CRITIQUE=1          # default 1 critique iteration (increase with --max-critique=N or --thorough)
+NUM_CRITICS=3           # default all 3 critics (reduce with --critics=2 or --fast)
+SKIP_LESSONS=false
+DRAFT_MODE=false        # --draft: stop after build checkpoint
+REBUILD_MODE=false      # --rebuild: skip planning, re-run build only
+FROM_PHASE=""           # --from=<phase>: resume from a specific phase
+
+# Two-pass parsing: presets first, then explicit flags override.
+# This ensures --fast --max-critique=2 gives fast defaults but 2 critique iterations,
+# regardless of argument order.
+
+# Pass 1: apply presets (set baseline)
 for arg in "${@:4}"; do
   case "$arg" in
-    --with-voice)      WITH_VOICE=true ;;
-    --full-auto)       FULL_AUTO=true ;;
-    --verbose)         VERBOSE=true ;;
-    --skip-critique)   SKIP_CRITIQUE=true ;;
-    --skip-wireframe)  SKIP_WIREFRAME=true ;;
-    --palette)         echo "Error: --palette requires a value (grayscale|brand|free)"; exit 1 ;;
-    --palette=*)       PALETTE="${arg#--palette=}" ;;
+    --fast)     SKIP_WIREFRAME=true; MAX_CRITIQUE=1; NUM_CRITICS=2; SKIP_LESSONS=true ;;
+    --thorough) MAX_CRITIQUE=3; NUM_CRITICS=3; SKIP_LESSONS=false ;;
+    --draft)    DRAFT_MODE=true; SKIP_CRITIQUE=true; SKIP_LESSONS=true ;;
+    --rebuild)  REBUILD_MODE=true; SKIP_LESSONS=true ;;
+  esac
+done
+
+# Pass 2: explicit flags override presets
+for arg in "${@:4}"; do
+  case "$arg" in
+    --with-voice)       WITH_VOICE=true ;;
+    --full-auto)        FULL_AUTO=true ;;
+    --verbose)          VERBOSE=true ;;
+    --skip-critique)    SKIP_CRITIQUE=true ;;
+    --skip-wireframe)   SKIP_WIREFRAME=true ;;
+    --wireframe)        echo "Error: --wireframe is temporarily unavailable until the preview route is rebuilt"; exit 1 ;;
+    --skip-lessons)     SKIP_LESSONS=true ;;
+    --max-critique=*)   MAX_CRITIQUE="${arg#--max-critique=}" ;;
+    --critics=*)        NUM_CRITICS="${arg#--critics=}" ;;
+    --from=*)           FROM_PHASE="${arg#--from=}" ;;
+    --draft|--rebuild|--fast|--thorough) ;; # already handled in pass 1
+    --palette)          echo "Error: --palette requires a value (grayscale|brand|free)"; exit 1 ;;
+    --palette=*)        PALETTE="${arg#--palette=}" ;;
     *) echo "Unknown flag: $arg"; exit 1 ;;
   esac
 done
+
+# Validate numeric flags
+case "$MAX_CRITIQUE" in
+  [0-9]|[0-9][0-9]) ;;
+  *) echo "Error: --max-critique must be a number (got: $MAX_CRITIQUE)"; exit 1 ;;
+esac
+case "$NUM_CRITICS" in
+  2|3) ;;
+  *) echo "Error: --critics must be 2 or 3 (got: $NUM_CRITICS)"; exit 1 ;;
+esac
+
+# Validate --from phase name
+VALID_PHASES="research director-research creative-vision storyboard director-storyboard build-components visual-qa critique"
+if [ -n "$FROM_PHASE" ]; then
+  phase_valid=false
+  for p in $VALID_PHASES; do
+    [ "$p" = "$FROM_PHASE" ] && phase_valid=true
+  done
+  if [ "$phase_valid" = "false" ]; then
+    echo "Error: --from=$FROM_PHASE is not a valid phase."
+    echo "Valid phases: $VALID_PHASES"
+    exit 1
+  fi
+fi
+
+# --rebuild and --from are mutually exclusive
+if [ "$REBUILD_MODE" = "true" ] && [ -n "$FROM_PHASE" ]; then
+  echo "Error: --rebuild and --from cannot be used together. Use --from=build-components for the same effect."
+  exit 1
+fi
 
 # Validate palette mode
 case "$PALETTE" in
@@ -118,9 +180,11 @@ EP_PATH="client/src/episodes/ep${EP_NUM}-${SLUG}"
 AUDIO_PATH="client/public/audio/ep${EP_NUM}-${SLUG}"
 LOG_FILE="$WORK_DIR/pipeline.log"
 
-# Session files — separate tracks for different agent roles
+# Session files — separate tracks to avoid context bloat
 CREATIVE_SESSION="$WORK_DIR/session_creative"   # creative vision + storyboard
-BUILD_SESSION="$WORK_DIR/session_build"          # build components + template + rebuilds
+BUILD_SESSION="$WORK_DIR/session_build"          # build components + template
+QA_SESSION="$WORK_DIR/session_qa"               # visual QA + structural fix
+# Rebuild sessions are per-iteration: session_rebuild_iter1, session_rebuild_iter2, etc.
 
 # Tool sets — planner physically CAN'T edit code, only think and write guidance
 EXECUTOR_TOOLS="Read,Edit,Write,Glob,Grep,Bash,Agent,WebFetch,WebSearch"
@@ -215,7 +279,7 @@ stop_preview() {
 # Opens the episode in a browser, lets the user watch it, then asks y/n.
 # If the user gives feedback, it's saved to a file for the next phase to read.
 #
-# Usage: checkpoint <label> <feedback_file>
+# Usage: checkpoint <label> <feedback_file> [hash]
 # Returns: 0 = continue, 1 = user wants to redo (feedback saved to file)
 #
 # Skipped when --full-auto is set.
@@ -225,13 +289,14 @@ CHECKPOINT_FEEDBACK=""
 checkpoint() {
   local label="$1"
   local feedback_file="$WORK_DIR/$2"
+  local hash="${3:-ep${EP_NUM}}"
 
   if [ "$FULL_AUTO" = "true" ]; then
     log "Checkpoint '$label' — skipped (--full-auto)"
     return 0
   fi
 
-  start_preview
+  start_preview "$hash"
 
   echo ""
   echo "╔══════════════════════════════════════════════════════════════════════╗"
@@ -278,7 +343,8 @@ checkpoint() {
 }
 
 # Run a claude -p phase. Saves output and session ID.
-# Usage: run_phase <name> <prompt> [--new-session] [--session-file <path>] [--tools <list>]
+# Usage: run_phase <name> <prompt> [--new-session] [--session-file <path>] [--tools <list>] [--non-critical]
+# By default, a failed phase kills the pipeline. Use --non-critical to allow continuation.
 run_phase() {
   local phase_name="$1"
   local prompt="$2"
@@ -288,12 +354,14 @@ run_phase() {
   local resume_flag=""
   local new_session=false
   local tools="$EXECUTOR_TOOLS"
+  local critical=true
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --new-session)  new_session=true; shift ;;
-      --session-file) session_file="$2"; shift 2 ;;
-      --tools)        tools="$2"; shift 2 ;;
+      --new-session)     new_session=true; shift ;;
+      --session-file)    session_file="$2"; shift 2 ;;
+      --tools)           tools="$2"; shift 2 ;;
+      --non-critical)    critical=false; shift ;;
       *) shift ;;
     esac
   done
@@ -400,9 +468,14 @@ run_phase() {
       local duration=$(( end_time - start_time ))
       local mins=$(( duration / 60 ))
       local secs=$(( duration % 60 ))
-      log "✗ Phase $phase_name failed (exit code $exit_code, ${mins}m ${secs}s)"
+      log "✗ Phase $phase_name FAILED (exit code $exit_code, ${mins}m ${secs}s)"
       log "  Error details: $raw_output"
-      return 0
+      echo "${mins}m ${secs}s" > "$WORK_DIR/.duration_${phase_name}"
+      if [ "$critical" = "true" ]; then
+        log "FATAL: Critical phase $phase_name failed — stopping pipeline."
+        exit 1
+      fi
+      return 1
     fi
 
     # Extract session ID and cost from the JSON output
@@ -420,8 +493,13 @@ run_phase() {
   local secs=$(( duration % 60 ))
 
   if [ $exit_code -ne 0 ]; then
-    log "✗ Phase $phase_name failed (exit code $exit_code, ${mins}m ${secs}s)"
-    return 0
+    log "✗ Phase $phase_name FAILED (exit code $exit_code, ${mins}m ${secs}s)"
+    echo "${mins}m ${secs}s" > "$WORK_DIR/.duration_${phase_name}"
+    if [ "$critical" = "true" ]; then
+      log "FATAL: Critical phase $phase_name failed — stopping pipeline."
+      exit 1
+    fi
+    return 1
   fi
 
   log "✓ Phase $phase_name complete (${mins}m ${secs}s, \$${cost})"
@@ -452,6 +530,8 @@ read_artifact() {
 
 # Run claude -p in background, saving result to $WORK_DIR/<name>.md
 # Usage: bg_claude <name> <prompt> <tools>
+# On success: creates .done_<name> and .cost_<name>
+# On failure: creates .failed_<name> (NO .done_ marker)
 bg_claude() {
   local name="$1" prompt="$2" tools="${3:-$EXECUTOR_TOOLS}"
   local raw="$WORK_DIR/${name}_raw.json"
@@ -459,11 +539,14 @@ bg_claude() {
   local bg_start=$(date +%s)
   (
     cd "$PROJECT_DIR" || exit 1
+    local bg_exit=0
     if claude -p "$prompt" --allowedTools "$tools" --output-format json > "$raw" 2>&1; then
       jq -r '.result // empty' "$raw" > "$WORK_DIR/${name}.md" 2>/dev/null
       local cost
       cost=$(jq -r '.total_cost_usd // 0' "$raw" 2>/dev/null || echo "?")
       echo "$cost" > "$WORK_DIR/.cost_${name}"
+    else
+      bg_exit=$?
     fi
     rm -f "$raw"
     local bg_end=$(date +%s)
@@ -471,18 +554,25 @@ bg_claude() {
     local bg_mins=$(( bg_dur / 60 ))
     local bg_secs=$(( bg_dur % 60 ))
     echo "${bg_mins}m ${bg_secs}s" > "$WORK_DIR/.duration_${name}"
-    touch "$WORK_DIR/.done_${name}"
+    if [ "$bg_exit" -eq 0 ]; then
+      touch "$WORK_DIR/.done_${name}"
+    else
+      touch "$WORK_DIR/.failed_${name}"
+      exit 1
+    fi
   ) &
 }
 
 # Wait for background phases with a spinner
 # Usage: wait_group <label> <pid1> [pid2] [pid3] ...
+# Returns: number of failed background jobs (0 = all succeeded)
 wait_group() {
   local label="$1"
   shift
   local pids=("$@")
   local start_time
   start_time=$(date +%s)
+  local failures=0
 
   (
     while true; do
@@ -496,7 +586,9 @@ wait_group() {
   local spinner_pid=$!
 
   for pid in "${pids[@]}"; do
-    wait "$pid" 2>/dev/null || true
+    if ! wait "$pid" 2>/dev/null; then
+      failures=$((failures + 1))
+    fi
   done
 
   kill $spinner_pid 2>/dev/null
@@ -508,7 +600,13 @@ wait_group() {
   local duration=$(( end_time - start_time ))
   local mins=$(( duration / 60 ))
   local secs=$(( duration % 60 ))
-  log "✓ $label complete (${mins}m ${secs}s, ${#pids[@]} parallel agents)"
+
+  if [ "$failures" -gt 0 ]; then
+    log "⚠ $label finished with $failures/$((${#pids[@]})) agent(s) FAILED (${mins}m ${secs}s)"
+  else
+    log "✓ $label complete (${mins}m ${secs}s, ${#pids[@]} parallel agents)"
+  fi
+  return "$failures"
 }
 
 # Sum costs from bg_claude runs
@@ -531,35 +629,103 @@ sum_costs() {
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════════════╗"
-echo "║       AUTO-EPISODE PIPELINE v2 (Multi-Agent Architecture)          ║"
+echo "║       AUTO-EPISODE PIPELINE v3 (Streamlined)                       ║"
 echo "║                                                                    ║"
-echo "║   Topic:   $TOPIC"
-echo "║   Episode: $EP_NUM ($SLUG)"
-echo "║   Voice:   $WITH_VOICE"
-echo "║   Palette: $PALETTE"
-echo "║   Verbose: $VERBOSE"
-echo "║   Output:  $EP_PATH/"
+echo "║   Topic:     $TOPIC"
+echo "║   Episode:   $EP_NUM ($SLUG)"
+echo "║   Mode:      $(if [ "$REBUILD_MODE" = "true" ]; then echo "REBUILD (build only)"; elif [ "$DRAFT_MODE" = "true" ]; then echo "DRAFT (stop after build)"; elif [ -n "$FROM_PHASE" ]; then echo "FROM $FROM_PHASE"; else echo "full pipeline"; fi)"
+echo "║   Voice:     $WITH_VOICE"
+echo "║   Palette:   $PALETTE"
+echo "║   Critique:  $MAX_CRITIQUE iteration(s), $NUM_CRITICS critics"
+echo "║   Verbose:   $VERBOSE"
+echo "║   Output:    $EP_PATH/"
 echo "║                                                                    ║"
-echo "║   Agent Roles:                                                     ║"
-echo "║     Planner   = thinks, reviews, steers (can't edit code)          ║"
-echo "║     Executor  = builds, implements, fixes (can edit code)          ║"
-echo "║     Parallel  = 3 agents run simultaneously (research, critique)   ║"
-echo "║                                                                    ║"
-echo "║   New in v2:                                                       ║"
-echo "║     • Parallel research (3 sub-agents: tech, visual, angle)        ║"
-echo "║     • Motion script (timestamped animation spec)                   ║"
-echo "║     • Wireframe-first build (verify positioning early)             ║"
-echo "║     • Structural hard gates (pre-critique grep checks)             ║"
-echo "║     • Multi-persona critique (designer, tech, audience proxy)      ║"
-echo "║     • Cross-episode learning w/ pattern consolidation              ║"
-echo "║     • Visual checkpoints — watch in browser, approve or redirect   ║"
+echo "║   Presets:                                                         ║"
+echo "║     --fast     1 critique iteration, 2 critics, skip lessons        ║"
+echo "║     --thorough 3 critique iterations, 3 critics                    ║"
+echo "║     (default)  1 critique iteration, 3 critics, async lessons      ║"
 echo "║                                                                    ║"
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 echo ""
 
 PIPELINE_START=$(date +%s)
 log "Pipeline started at $(date)"
-log "Topic: $TOPIC | Episode: $EP_NUM | Slug: $SLUG | Voice: $WITH_VOICE | Palette: $PALETTE"
+log "Topic: $TOPIC | Episode: $EP_NUM | Slug: $SLUG | Voice: $WITH_VOICE | Palette: $PALETTE | Critique: ${MAX_CRITIQUE}x${NUM_CRITICS}"
+
+# ─── --rebuild mode: verify artifacts exist, mark planning phases done ────
+if [ "$REBUILD_MODE" = "true" ]; then
+  log "REBUILD MODE — skipping planning, re-running build only"
+
+  # Check that essential artifacts exist
+  MISSING_ARTIFACTS=""
+  for artifact in storyboard.md creative-brief.md; do
+    if [ ! -f "$WORK_DIR/$artifact" ]; then
+      MISSING_ARTIFACTS="${MISSING_ARTIFACTS} $artifact"
+    fi
+  done
+
+  if [ -n "$MISSING_ARTIFACTS" ]; then
+    log "FATAL: --rebuild requires existing artifacts, but these are missing:${MISSING_ARTIFACTS}"
+    log "Run the full pipeline first, then use --rebuild to re-run the build."
+    exit 1
+  fi
+
+  # Mark all planning phases as done so they're skipped
+  for phase in research-technical research-visual research-angle research research-merge \
+               director-research creative-vision storyboard director-storyboard wireframe; do
+    touch "$WORK_DIR/.done_${phase}"
+  done
+
+  # Delete the build marker so it re-runs
+  rm -f "$WORK_DIR/.done_build-components"
+
+  log "Planning artifacts found — jumping to build phase"
+fi
+
+# ─── --from=<phase> mode: delete markers from that phase onward ───────────
+if [ -n "$FROM_PHASE" ]; then
+  log "FROM MODE — re-running from phase: $FROM_PHASE"
+
+  # Ordered list of all phases
+  ALL_PHASES="research-technical research-visual research-angle research research-merge \
+    director-research creative-vision storyboard director-storyboard \
+    wireframe build-components visual-qa structural-fix \
+    critique-visual-iter1 critique-tech-iter1 critique-audience-iter1 \
+    critique-merge-iter1 fix-plan-iter1 rebuild-iter1 \
+    critique-visual-iter2 critique-tech-iter2 critique-audience-iter2 \
+    critique-merge-iter2 fix-plan-iter2 rebuild-iter2 \
+    critique-visual-iter3 critique-tech-iter3 critique-audience-iter3 \
+    critique-merge-iter3 fix-plan-iter3 rebuild-iter3 \
+    voiceover lessons"
+
+  # Map --from value to the first phase to delete
+  case "$FROM_PHASE" in
+    research)          delete_from="research-technical" ;;
+    director-research) delete_from="director-research" ;;
+    creative-vision)   delete_from="creative-vision" ;;
+    storyboard)        delete_from="storyboard" ;;
+    director-storyboard) delete_from="director-storyboard" ;;
+    build-components)  delete_from="build-components" ;;
+    visual-qa)         delete_from="visual-qa" ;;
+    critique)          delete_from="critique-visual-iter1" ;;
+    *) delete_from="$FROM_PHASE" ;;
+  esac
+
+  # Delete .done_ markers from the target phase onward
+  found=false
+  deleted=0
+  for phase in $ALL_PHASES; do
+    if [ "$phase" = "$delete_from" ]; then
+      found=true
+    fi
+    if [ "$found" = "true" ] && [ -f "$WORK_DIR/.done_${phase}" ]; then
+      rm -f "$WORK_DIR/.done_${phase}"
+      deleted=$((deleted + 1))
+    fi
+  done
+
+  log "Cleared $deleted phase markers from '$FROM_PHASE' onward"
+fi
 
 # ═════════════════════════════════════════════════════════════════════════════
 # PHASE 1: DEEP RESEARCH  [3 Parallel Agents → Merge]
@@ -698,7 +864,14 @@ RESEARCH_PIDS=()
 [ -n "$PID_ANGLE" ] && RESEARCH_PIDS+=("$PID_ANGLE")
 
 if [ ${#RESEARCH_PIDS[@]} -gt 0 ]; then
-  wait_group "Parallel research (${#RESEARCH_PIDS[@]} agents)" "${RESEARCH_PIDS[@]}"
+  if ! wait_group "Parallel research (${#RESEARCH_PIDS[@]} agents)" "${RESEARCH_PIDS[@]}"; then
+    log "FATAL: One or more research agents failed — cannot continue."
+    # Show which ones failed
+    for name in research-technical research-visual research-angle; do
+      [ -f "$WORK_DIR/.failed_${name}" ] && log "  ✗ $name failed"
+    done
+    exit 1
+  fi
   RESEARCH_COST=$(sum_costs "research-technical" "research-visual" "research-angle")
   log "Research total cost: \$${RESEARCH_COST}"
 fi
@@ -953,22 +1126,31 @@ PROMPT_END
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
-# PHASE 5: DIRECTOR — STORYBOARD REVIEW  [Planner — can't edit code]
+# PHASE 5: DIRECTOR STORYBOARD REVIEW + MOTION SCRIPT  [Planner — one pass]
 # ═════════════════════════════════════════════════════════════════════════════
+# Merged: the director reviews the storyboard AND writes the timestamped
+# motion script in a single Planner call. Both outputs are saved separately.
 
-divider "PLANNER" "DIRECTOR — STORYBOARD REVIEW"
+divider "PLANNER" "DIRECTOR REVIEW + MOTION SCRIPT"
 
 if phase_done "director-storyboard"; then
-  log "⏭ director-storyboard already done — skipping"
+  log "⏭ director-storyboard + motion-script already done — skipping"
 else
 run_phase "director-storyboard" "$(cat <<PROMPT_END
-You are a CREATIVE DIRECTOR reviewing a storyboard before it goes to production. You cannot edit code. Your job is to review alignment and write build guidance.
+You are a CREATIVE DIRECTOR reviewing a storyboard and writing a timestamped motion script for production. You cannot edit code. This is the last review before code gets written.
+
+Episode ${EP_NUM}: ${TOPIC}
 
 Read ALL of these files:
 - Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
 - Your previous direction: .auto-episode/ep${EP_NUM}-${SLUG}/director-research.md
 - Creative brief: .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
 - Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
+- CLAUDE.md — especially the Animation Toolkit, GSAP Utilities, Camera System, and Timing Guidelines sections
+
+═══════════════════════════════════════════════
+PART 1: STORYBOARD REVIEW
+═══════════════════════════════════════════════
 
 CHECK:
 1. Does the storyboard follow YOUR direction from the research review? Or did it drift?
@@ -981,67 +1163,22 @@ CHECK:
 8. Is the signature visual actually custom and original vs. existing episodes?
 9. Does the opening start from familiar ground (not jargon)?
 10. Are real values used (not "the hash of X" but actual hex values)?
-11. If characters are used: Do Alice & Bob have distinct roles (not both saying the same things)? Are emotions varied and appropriate per scene (not all "neutral")? Do speech bubbles stay short (max ~12 words)? Do characters look at each other when in dialogue? Are there non-dialogue scenes too (characters shouldn't dominate the ENTIRE episode)?
+11. If characters are used: Do Alice & Bob have distinct roles? Varied emotions? Short speech bubbles (max ~12 words)? Do they look at each other during dialogue? Non-dialogue scenes too?
 
-Write your build guidance to .auto-episode/ep${EP_NUM}-${SLUG}/director-storyboard.md
-
-Format:
-## Verdict
-[GO / NEEDS CHANGES — be clear]
-
+Save your review to .auto-episode/ep${EP_NUM}-${SLUG}/director-storyboard.md with sections:
+## Verdict (GO / NEEDS CHANGES)
 ## Alignment Check
-[does storyboard match the direction you set?]
-
-## Scenes to Strengthen
-[specific scene numbers and what to improve]
-
+## Scenes to Strengthen (specific scene numbers)
 ## Scenes to Cut or Merge
-[anything that doesn't earn its place]
-
-## Build Priorities
-[what the developer should build FIRST — the signature visual, then what?]
-
+## Build Priorities (what to build FIRST)
 ## Risk Areas
-[what's most likely to go wrong in implementation]
-
 ## Non-Negotiables
-[things that MUST be in the final product — specific scenes, specific visuals]
 
-Be direct. This is the last review before code gets written.
-PROMPT_END
-)" --new-session --session-file "$WORK_DIR/session_director2" --tools "$PLANNER_TOOLS"
-fi
+═══════════════════════════════════════════════
+PART 2: TIMESTAMPED MOTION SCRIPT
+═══════════════════════════════════════════════
 
-# ═════════════════════════════════════════════════════════════════════════════
-# PHASE 5.5: MOTION SCRIPT  [Planner — timestamped animation spec]
-# ═════════════════════════════════════════════════════════════════════════════
-
-divider "PLANNER" "MOTION SCRIPT"
-
-if phase_done "motion-script"; then
-  log "⏭ motion-script already done — skipping"
-else
-
-STORYBOARD_TEXT=$(read_artifact "storyboard.md")
-DIRECTOR_SB=$(read_artifact "director-storyboard.md")
-
-run_phase "motion-script" "$(cat <<PROMPT_END
-You are an ANIMATION DIRECTOR writing a timestamped motion script — the missing spec between "storyboard" (what to show) and "code" (how to build it). You cannot edit code.
-
-Episode ${EP_NUM}: ${TOPIC}
-
-Read these for context:
----STORYBOARD---
-${STORYBOARD_TEXT}
----END STORYBOARD---
-
----DIRECTOR BUILD GUIDANCE---
-${DIRECTOR_SB}
----END DIRECTOR---
-
-Also read CLAUDE.md — especially the Animation Toolkit, GSAP Utilities, and Timing Guidelines sections.
-
-YOUR JOB: For each scene, write a precise TIMESTAMPED motion script that tells the developer EXACTLY what moves when. This eliminates timing guesswork during the build phase.
+Now, incorporating your review feedback above, write a precise TIMESTAMPED motion script — the spec between "storyboard" and "code."
 
 FORMAT — for each scene:
 \`\`\`
@@ -1059,42 +1196,40 @@ SCENE <N>: <name> (duration: <X>s)
 RULES:
 1. Every element gets a timestamp. No "then" or "after that" — use exact times.
 2. Specify the animation TECHNIQUE for each move: morph(), GSAP tl.from/tl.to, CE enter/exit, CSS @keyframes, spring config.
-3. Camera moves get their own timestamps: "Camera — pan to Zone B (spring stiffness 50, damping 22)" or "Camera — zoom into detail at (140vw, 30vh) scale 2.2"
-4. Mark the HIGHLIGHT SCENE's dramatic moment with ★ — this is where timing matters most.
+3. Camera moves get their own timestamps.
+4. Mark the HIGHLIGHT SCENE's dramatic moment with ★.
 5. Include hold/breathing time at the end of each scene (1-2s minimum).
-6. For voiceover-synced episodes, mark where specific phrases align with visuals.
-7. Note which elements PERSIST across scenes (use morph) vs which enter/exit (use CE/GSAP).
-8. For CHARACTER scenes: timestamp each character state change. Characters use Framer Motion springs internally — specify emotion/gesture/lookAt/says changes at exact times. Example:
-   0.0s  alice — emotion=explaining, gesture=present, lookAt=right, says="Each block links to the previous one"
-   0.0s  bob — emotion=curious, lookAt=left (no speech — listening)
-   3.5s  bob — emotion=surprised, says="Wait, what if someone changes a block?"
-   3.5s  alice — emotion=neutral, gesture=none (listening now)
+6. Note which elements PERSIST across scenes (use morph) vs which enter/exit (use CE/GSAP).
+7. For CHARACTER scenes: timestamp each character state change (emotion, gesture, lookAt, says).
 
-ALSO INCLUDE:
-- ## Persistent Elements (which elements stay mounted across multiple scenes and transform via morph)
-- ## Animation Library Assignments (which scenes use GSAP timeline, which use morph, which use CSS @keyframes)
-- ## Camera Shots (per-scene camera positions — use focus(cx, cy, scale) or fitRect(x, y, w, h). Final scene = full canvas reveal at scale 0.3-0.5)
-- ## Character Choreography (if characters are used: which scenes have dialogue, character positions, emotion arcs across the episode)
+ALSO INCLUDE at the end:
+- ## Persistent Elements
+- ## Animation Library Assignments
+- ## Camera Shots (per-scene positions using focus()/fitRect(). Final scene = full canvas reveal)
+- ## Character Choreography (if applicable)
 
 Save to .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md
 
-Be PRECISE. This script is the developer's exact build spec — vague timing = vague animation.
+Be PRECISE. Both documents are the developer's build spec — vague guidance = vague episode.
 PROMPT_END
-)" --new-session --session-file "$WORK_DIR/session_motion" --tools "$PLANNER_TOOLS"
+)" --new-session --session-file "$WORK_DIR/session_director2" --tools "$PLANNER_TOOLS"
+
+# Mark motion-script as done too (merged into this phase)
+touch "$WORK_DIR/.done_motion-script"
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
-# PHASE 5.7: WIREFRAME BUILD  [Executor — skeleton layout verification]
+# PHASE 5.7: WIREFRAME BUILD + QA  [Executor — skeleton layout verification]
 # ═════════════════════════════════════════════════════════════════════════════
 
-divider "EXECUTOR" "WIREFRAME BUILD"
+divider "EXECUTOR" "WIREFRAME BUILD + QA"
 
 if phase_done "wireframe"; then
   log "⏭ wireframe already done — skipping"
 else
 
 run_phase "wireframe" "$(cat <<PROMPT_END
-You are generating a STORYBOARD PREVIEW CONFIG for episode ${EP_NUM}: ${TOPIC} — a lightweight config that verifies the canvas zones and camera journey BEFORE any real code is built.
+You are generating and verifying a STORYBOARD PREVIEW CONFIG for episode ${EP_NUM}: ${TOPIC} — a lightweight config that verifies the canvas zones and camera journey BEFORE any real code is built.
 
 Read these for context:
 - Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md (especially the "Canvas Layout" section)
@@ -1156,15 +1291,6 @@ export const previewConfig: PreviewConfig = {
 };
 \`\`\`
 
-RULES:
-- Use focus(cx, cy, scale) to center a zone on screen — cx/cy should be the zone's center point
-- Use fitRect(x, y, w, h) for the FINAL scene to reveal the entire canvas
-- Leave 20-30vw gaps between zones (they must not overlap or bleed into each other)
-- Zone colors should be distinct and match the episode mood
-- Scene labels should be SHORT (3-5 words)
-- Scene text should match the storyboard's on-screen captions (6-10 words max)
-- Camera journey must include: zoom variation (0.3 to 2.5), vertical pans, backtracking, final reveal
-
 STEPS:
 1. Read the storyboard to extract: canvas dimensions, zone positions, camera journey, scene list
 2. Read client/src/preview-config.ts to see the existing format and types
@@ -1172,40 +1298,18 @@ STEPS:
 4. Run npx tsc --noEmit --project tsconfig.json to verify the config compiles
 5. Save a copy to .auto-episode/ep${EP_NUM}-${SLUG}/preview-config-snapshot.ts for reference
 
-This is NOT the real episode — it is a camera journey test rendered by the pre-built StoryboardPreview page. You are ONLY generating a config object, not a React component.
+THEN VERIFY (do not skip):
+- Zones have 20-30vw gaps (no overlapping neighbors)
+- Every scene in the storyboard has a corresponding entry in scenes[]
+- Camera shots cover all zones (no zone is unreachable)
+- The LAST scene's shot uses fitRect() to reveal the entire canvas
+- Zone centers match their focus() coordinates in shots
+- Camera journey has variety: zoom changes (0.3-2.5), vertical pans, backtracking
+- Fix any issues found, re-run tsc to verify
+
+Save verification findings to .auto-episode/ep${EP_NUM}-${SLUG}/wireframe-qa.md
 PROMPT_END
-)" --new-session --session-file "$BUILD_SESSION"
-fi
-
-# ── PREVIEW CONFIG VERIFICATION ───────────────────────────────────────────
-
-divider "EXECUTOR" "PREVIEW CONFIG QA"
-
-if phase_done "wireframe-qa"; then
-  log "⏭ wireframe-qa (preview config) already done — skipping"
-else
-
-run_phase "wireframe-qa" "$(cat <<PROMPT_END
-You are verifying the STORYBOARD PREVIEW CONFIG for episode ${EP_NUM}: ${TOPIC}.
-
-Read client/src/preview-config.ts — this is the file that drives the #preview page.
-
-CHECK:
-1. TypeScript compiles: run npx tsc --noEmit --project tsconfig.json
-2. The config has zones with 20-30vw gaps (no overlapping neighbors)
-3. Every scene in the storyboard has a corresponding entry in scenes[]
-4. Camera shots cover all zones (no zone is unreachable)
-5. The LAST scene's shot uses fitRect() to reveal the entire canvas
-6. Zone centers match their focus() coordinates in shots
-7. Camera journey has variety: zoom changes (0.3-2.5), vertical pans, backtracking
-
-Fix any issues found in client/src/preview-config.ts.
-
-Save findings to .auto-episode/ep${EP_NUM}-${SLUG}/wireframe-qa.md
-
-Compare against the storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
-PROMPT_END
-)" --session-file "$BUILD_SESSION"
+)" --new-session --session-file "$WORK_DIR/session_wireframe"
 fi
 
 # ── CHECKPOINT 1: STORYBOARD PREVIEW REVIEW ──────────────────────────────────
@@ -1214,7 +1318,7 @@ fi
 
 if [ "$SKIP_WIREFRAME" = "true" ]; then
   log "Checkpoint 'PREVIEW' — skipped (--skip-wireframe)"
-elif ! checkpoint "STORYBOARD PREVIEW — Watch the camera journey" "feedback-wireframe.txt" "preview"; then
+elif ! checkpoint "STORYBOARD PREVIEW — Watch the camera journey" "feedback-wireframe.txt" "ep${EP_NUM}"; then
   # User chose 'r' (redo) — delete preview config artifacts and re-run
   log "Redoing preview config phase..."
   rm -f "$WORK_DIR/.done_wireframe" "$WORK_DIR/.done_wireframe-qa"
@@ -1267,8 +1371,12 @@ Read these artifacts for full context:
 - Creative brief: .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
 - Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
 
-A wireframe version already exists at ${EP_PATH}/VideoTemplate.tsx with verified Camera + zones layout.
-Use the wireframe's zone positions and camera shots as your foundation — replace placeholder boxes with real components at their zone positions.
+$(if [ "$SKIP_WIREFRAME" = "false" ] && [ -f "$PROJECT_DIR/${EP_PATH}/VideoTemplate.tsx" ]; then
+echo "A wireframe version already exists at ${EP_PATH}/VideoTemplate.tsx with verified Camera + zones layout."
+echo "Use the wireframe's zone positions and camera shots as your foundation — replace placeholder boxes with real components at their zone positions."
+else
+echo "Build the episode from scratch using the storyboard's canvas layout section for zone positions and camera shots."
+fi)
 
 FOLLOW THE DIRECTOR'S BUILD PRIORITIES. Build the signature visual FIRST, then supporting components.
 
@@ -1295,43 +1403,14 @@ Reference: EP8's SpongeCanvas.tsx (497 lines, Canvas 2D particle physics, 5 mode
 - All visual components stay MOUNTED inside Camera at all times — do NOT use sceneRange() to unmount them. This enables backtracking and the final canvas reveal. Leave 20-30vw gaps between zones so neighbors don't bleed into frame.
 - If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE.md for the full props API (emotions, gestures, lookAt, speech bubbles).
 
-Create the episode directory and component files:
-- mkdir -p ${EP_PATH}/
-- Write each custom component as a separate file in the episode folder
-- If the component needs helper functions or data, include them
+PHASE A — BUILD CUSTOM COMPONENTS:
+1. Create the episode directory: mkdir -p ${EP_PATH}/
+2. Write constants.ts with EP_COLORS, EP_SPRINGS, and SCENE_DURATIONS
+3. Build the signature visual FIRST as a separate .tsx file
+4. Build supporting custom components as separate .tsx files
+5. Verify components compile: npx tsc --noEmit --project tsconfig.json
 
-Test that the components compile: run npx tsc --noEmit --project tsconfig.json
-
-Build something beautiful. The director is watching.
-PROMPT_END
-)" --new-session --session-file "$BUILD_SESSION"
-fi
-
-# ═════════════════════════════════════════════════════════════════════════════
-# PHASE 7: IMPLEMENT VIDEOTEMPLATE  [Executor — resumes build session]
-# ═════════════════════════════════════════════════════════════════════════════
-
-divider "EXECUTOR" "IMPLEMENT VIDEOTEMPLATE"
-
-if phase_done "build-template"; then
-  log "⏭ build-template already done — skipping"
-else
-PAST_LESSONS_TEMPLATE=""
-if [ -f "$PROJECT_DIR/.auto-episode/lessons-learned.md" ]; then
-  PAST_LESSONS_TEMPLATE=$(cat "$PROJECT_DIR/.auto-episode/lessons-learned.md")
-fi
-
-run_phase "build-template" "$(cat <<PROMPT_END
-Now assemble the full VideoTemplate.tsx for episode ${EP_NUM}: ${TOPIC}.
-
-Read the storyboard for scene details: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
-Read the director's build guidance: .auto-episode/ep${EP_NUM}-${SLUG}/director-storyboard.md
-
-${PAST_LESSONS_TEMPLATE:+LESSONS FROM PAST EPISODES — avoid these known pitfalls:
----BEGIN LESSONS---
-${PAST_LESSONS_TEMPLATE}
----END LESSONS---
-}
+PHASE B — ASSEMBLE VIDEOTEMPLATE:
 Using your custom components, build the complete single-canvas VideoTemplate following CLAUDE.md.
 
 CHECKLIST:
@@ -1340,10 +1419,9 @@ CHECKLIST:
 3. Create a themed CE: const ECE = createThemedCE(ceThemes.blurIn) — pick a theme that fits the episode mood (blurIn, clipCircle, glitch, scalePop, wipeRight, flip, rotateIn, etc). NEVER use bare CE with default fade-up.
 4. Import your custom components from the episode folder
 5. Import EP_COLORS, EP_SPRINGS from the episode's constants.ts
-6. Define SCENE_DURATIONS based on storyboard timing
-7. Use morph() as the PRIMARY animation pattern — elements stay mounted and transform between scene states
-8. Use Camera for layout — wrap visual content in Camera with shots per scene using focus()/fitRect(). Place content at zone positions (absolute vw/vh) with 20-30vw gaps between zones. Pass zones prop for dev minimap. Text captions go OUTSIDE Camera in screen space. FINAL SCENE must fitRect() to reveal the entire canvas.
-9. All visual components inside Camera stay MOUNTED — do NOT use sceneRange() to unmount them. The camera controls what's visible by panning/zooming. This enables backtracking to earlier zones and the final canvas reveal.
+6. Use morph() as the PRIMARY animation pattern — elements stay mounted and transform between scene states
+7. Use Camera for layout — wrap visual content in Camera with shots per scene using focus()/fitRect(). Place content at zone positions (absolute vw/vh) with 20-30vw gaps between zones. Pass zones prop for dev minimap. Text captions go OUTSIDE Camera in screen space. FINAL SCENE must fitRect() to reveal the entire canvas.
+8. All visual components inside Camera stay MOUNTED — do NOT use sceneRange() to unmount them. The camera controls what's visible by panning/zooming. This enables backtracking to earlier zones and the final canvas reveal.
 9. Use CE ONLY for text captions and labels — NOT for the core visual
 10. Use GSAP (gsap.timeline()) for choreographed sequences where morph() isn't enough
 11. Progressive reveal in every scene — staggered delays
@@ -1355,19 +1433,20 @@ POSITIONING:
 - Use focus(cx, cy, scale) and fitRect(x, y, w, h) helpers to compute camera shots — NOT manual x/y math
 - Pass zones array to Camera for the dev minimap — verify in browser that all zones are reachable
 - Text captions (ECE) go OUTSIDE the Camera in screen space — they're always visible regardless of camera position
-- Do NOT write manual POSITION AUDIT comments — the automated visual QA tool + dev minimap verify positioning
 
-ALSO:
+PHASE C — REGISTER AND VERIFY:
 - Add data-video="ep${EP_NUM}" attribute on the root div (required for recording)
 - Register the episode in client/src/App.tsx (add route)
 - Register in client/src/pages/Home.tsx (add to episode list)
 - Export from client/src/episodes/index.ts
 - Run npx tsc --noEmit --project tsconfig.json to verify
 
-The VideoTemplate should be a complete, working episode ready for preview.
+Build all components AND the VideoTemplate in this single pass. The episode should be complete and ready for preview.
 PROMPT_END
-)" --session-file "$BUILD_SESSION"
+)" --new-session --session-file "$BUILD_SESSION"
 fi
+
+# (build-template merged into build-components above — single build phase)
 
 # ═════════════════════════════════════════════════════════════════════════════
 # TYPE CHECK
@@ -1387,10 +1466,37 @@ fi
 # on the expensive Visual QA + Hard Gates + 3-critic loop.
 
 if ! checkpoint "FULL BUILD — Watch the real episode" "feedback-build.txt"; then
-  # User chose 'r' (redo) — delete build artifacts and re-run from components
+  # User chose 'r' (redo) — delete build artifacts and re-run
   log "Redoing build phase..."
-  rm -f "$WORK_DIR/.done_build-components" "$WORK_DIR/.done_build-template"
+  rm -f "$WORK_DIR/.done_build-components"
   exec "$0" "$TOPIC" "$EP_NUM" "$SLUG" "${@:4}"
+fi
+
+# ── DRAFT MODE: stop here ────────────────────────────────────────────────────
+if [ "$DRAFT_MODE" = "true" ] || [ "$REBUILD_MODE" = "true" ]; then
+  PIPELINE_END=$(date +%s)
+  PIPELINE_DUR=$(( PIPELINE_END - PIPELINE_START ))
+  PIPELINE_MINS=$(( PIPELINE_DUR / 60 ))
+  PIPELINE_SECS=$(( PIPELINE_DUR % 60 ))
+
+  echo ""
+  echo "╔══════════════════════════════════════════════════════════════════════╗"
+  echo "║  $([ "$DRAFT_MODE" = "true" ] && echo "DRAFT" || echo "REBUILD") COMPLETE                                                ║"
+  echo "║                                                                    ║"
+  echo "║  Episode:  ${EP_PATH}/"
+  echo "║  Time:     ${PIPELINE_MINS}m ${PIPELINE_SECS}s"
+  echo "║                                                                    ║"
+  echo "║  Preview:  npm run dev:client → #ep${EP_NUM}                       ║"
+  echo "║                                                                    ║"
+  echo "║  Next steps:                                                       ║"
+  echo "║    • Iterate locally: edit code + hot reload                       ║"
+  echo "║    • Polish: re-run without --draft to add QA + critique           ║"
+  echo "║    • Rebuild: --rebuild after toolkit changes                      ║"
+  echo "║                                                                    ║"
+  echo "╚══════════════════════════════════════════════════════════════════════╝"
+  echo ""
+  log "$([ "$DRAFT_MODE" = "true" ] && echo "Draft" || echo "Rebuild") completed at $(date) (${PIPELINE_MINS}m ${PIPELINE_SECS}s)"
+  exit 0
 fi
 
 # If user gave feedback, inject it into visual QA + critique phases
@@ -1488,7 +1594,7 @@ After all fixes, run: npx tsc --noEmit to verify compilation.
 
 Write a summary to .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa.md
 PROMPT_END
-)" --session-file "$BUILD_SESSION"
+)" --new-session --session-file "$QA_SESSION"
 
 else
   log "✓ No positioning issues to fix"
@@ -1581,16 +1687,37 @@ Fix instructions per rule:
 
 Read ${EP_PATH}/ files and fix each violation. Then run: npx tsc --noEmit --project tsconfig.json
 PROMPT_END
-)" --session-file "$BUILD_SESSION"
+)" --session-file "$QA_SESSION"
 
-  # Re-run gates to verify fixes
+  # Re-run gates to verify fixes actually landed
   log "Re-checking hard gates after fix..."
   GATE_FAILS_POST=0
-  for check_name in "No bare CE" "GSAP used" "EP_COLORS" "EP_SPRINGS" "Camera" "3+ camera shots" "Themed CE" "Custom component"; do
-    # Just count — detailed log already happened above
-    true
-  done
-  log "Structural fix complete — proceeding to critique"
+  GATE_REPORT_POST=""
+
+  gate_recheck() {
+    local name="$1" cmd="$2"
+    if eval "$cmd" >/dev/null 2>&1; then
+      log "  PASS: $name"
+    else
+      log "  STILL FAILING: $name"
+      GATE_FAILS_POST=$((GATE_FAILS_POST + 1))
+      GATE_REPORT_POST="${GATE_REPORT_POST}\n- $name"
+    fi
+  }
+
+  gate_recheck "No bare CE" "! grep -E '<CE[ >]' '${EP_PATH}/VideoTemplate.tsx'"
+  gate_recheck "GSAP used" "grep -rql 'useSceneGSAP\|gsap\.\|useGSAP' '${EP_PATH}/'"
+  gate_recheck "EP_COLORS" "grep -q 'EP_COLORS' '${EP_PATH}/constants.ts'"
+  gate_recheck "EP_SPRINGS" "grep -q 'EP_SPRINGS' '${EP_PATH}/constants.ts'"
+  gate_recheck "Camera used" "grep -qE '<Camera' '${EP_PATH}/VideoTemplate.tsx'"
+  gate_recheck "Themed CE" "grep -rql 'createThemedCE\|ceThemes' '${EP_PATH}/'"
+  gate_recheck "Custom component" "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' | wc -l | tr -d ' ') -ge 1 ]"
+
+  if [ "$GATE_FAILS_POST" -gt 0 ]; then
+    log "⚠ $GATE_FAILS_POST gate(s) still failing after auto-fix — critique will catch these"
+  else
+    log "✓ All gates pass after fix"
+  fi
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1598,7 +1725,7 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 
 QUALITY_THRESHOLD=75
-MAX_ITERATIONS=3
+MAX_ITERATIONS=$MAX_CRITIQUE
 ITERATION=0
 
 if [ "$SKIP_CRITIQUE" = "true" ]; then
@@ -1761,17 +1888,34 @@ At the very end, output EXACTLY: AUDIENCE_SCORE: <number>
 PROMPT_END
 )
 
-  # ── Launch all 3 critics in parallel ────────────────────────────────────
-  log "Launching 3 parallel critics..."
+  # ── Launch critics in parallel ───────────────────────────────────────────
+  log "Launching $NUM_CRITICS parallel critics..."
 
+  CRITIQUE_PIDS=()
   bg_claude "critique-visual-iter${ITERATION}" "$PROMPT_CRITIC_VISUAL" "$PLANNER_TOOLS"
   PID_CV=$!
+  CRITIQUE_PIDS+=("$PID_CV")
+
   bg_claude "critique-tech-iter${ITERATION}" "$PROMPT_CRITIC_TECH" "$PLANNER_TOOLS"
   PID_CT=$!
-  bg_claude "critique-audience-iter${ITERATION}" "$PROMPT_CRITIC_AUDIENCE" "$PLANNER_TOOLS"
-  PID_CA=$!
+  CRITIQUE_PIDS+=("$PID_CT")
 
-  wait_group "Parallel critique (3 personas)" "$PID_CV" "$PID_CT" "$PID_CA"
+  if [ "$NUM_CRITICS" -ge 3 ]; then
+    bg_claude "critique-audience-iter${ITERATION}" "$PROMPT_CRITIC_AUDIENCE" "$PLANNER_TOOLS"
+    PID_CA=$!
+    CRITIQUE_PIDS+=("$PID_CA")
+  else
+    log "Skipping audience critic (--critics=$NUM_CRITICS)"
+  fi
+
+  CRITIQUE_FAILURES=0
+  wait_group "Parallel critique ($NUM_CRITICS personas)" "${CRITIQUE_PIDS[@]}" || CRITIQUE_FAILURES=$?
+  if [ "$CRITIQUE_FAILURES" -gt 0 ]; then
+    log "⚠ $CRITIQUE_FAILURES critic(s) failed — continuing with available critiques"
+    for name in "critique-visual-iter${ITERATION}" "critique-tech-iter${ITERATION}" "critique-audience-iter${ITERATION}"; do
+      [ -f "$WORK_DIR/.failed_${name}" ] && log "  ✗ $name failed"
+    done
+  fi
   CRITIQUE_COST=$(sum_costs "critique-visual-iter${ITERATION}" "critique-tech-iter${ITERATION}" "critique-audience-iter${ITERATION}")
   log "Critique cost: \$${CRITIQUE_COST}"
 
@@ -1972,7 +2116,7 @@ RULES:
 
 The planner's plan is your spec. Execute it precisely.
 PROMPT_END
-)" --session-file "$BUILD_SESSION"
+)" --new-session --session-file "$WORK_DIR/session_rebuild_iter${ITERATION}"
 
 done  # end critique→plan→rebuild loop
 
@@ -2013,7 +2157,7 @@ Add timing comments: // "phrase" @ Xs audio → X.4s scene
 
 Do NOT call the ElevenLabs API — just create the script.
 PROMPT_END
-)" --session-file "$BUILD_SESSION"
+)" --new-session --session-file "$WORK_DIR/session_voiceover"
 else
   log "Skipping voiceover (use --with-voice to include)"
 fi
@@ -2021,6 +2165,10 @@ fi
 # ═════════════════════════════════════════════════════════════════════════════
 # CROSS-EPISODE LEARNING  [Extract lessons for future episodes]
 # ═════════════════════════════════════════════════════════════════════════════
+
+if [ "$SKIP_LESSONS" = "true" ]; then
+  log "Skipping lessons extraction (--skip-lessons or --fast)"
+else
 
 divider "PLANNER" "CROSS-EPISODE LEARNING"
 
@@ -2055,7 +2203,7 @@ if [ -f "$LESSONS_FILE" ]; then
   EXISTING_LESSONS=$(cat "$LESSONS_FILE")
 fi
 
-run_phase "lessons" "$(cat <<PROMPT_END
+LESSONS_PROMPT="$(cat <<PROMPT_END
 You are extracting LESSONS LEARNED from an episode build pipeline to improve future episodes.
 
 Episode ${EP_NUM}: ${TOPIC}
@@ -2112,9 +2260,14 @@ Append-only — one entry per episode. Never delete entries, only add new ones.
 Save to .auto-episode/lessons-learned.md.
 IMPORTANT: The "Episode Log" section at the bottom is APPEND-ONLY — always keep existing episode entries and add the new one. The other sections can be updated/merged/consolidated, but Episode Log only grows.
 PROMPT_END
-)" --new-session --session-file "$WORK_DIR/session_lessons" --tools "$PLANNER_TOOLS"
+)"
 
-log "Lessons learned extracted to .auto-episode/lessons-learned.md"
+# Run lessons in background — non-blocking
+bg_claude "lessons" "$LESSONS_PROMPT" "$PLANNER_TOOLS"
+LESSONS_PID=$!
+log "Lessons extraction running in background (PID $LESSONS_PID) — pipeline continues"
+
+fi  # end skip-lessons check
 
 # ═════════════════════════════════════════════════════════════════════════════
 # DONE
@@ -2144,16 +2297,14 @@ echo "║    fix-plan-iter*.md       — Planner's prioritized fix plans       �
 echo "║    screenshots-*/          — Visual captures of each scene         ║"
 echo "║    lessons-learned.md      — Cross-episode learning (cumulative)   ║"
 echo "║                                                                    ║"
-echo "║  Pipeline flow:                                                    ║"
+echo "║  Pipeline flow (v3):                                                ║"
 echo "║    Research (3 parallel) → Merge → Director Review                 ║"
-echo "║    → Creative Vision → Storyboard → Director Review               ║"
-echo "║    → Motion Script → Wireframe → Wireframe QA                     ║"
-echo "║    → ★ CHECKPOINT 1: Watch wireframe in browser                    ║"
-echo "║    → Build Components → Build Template → Type Check                ║"
-echo "║    → ★ CHECKPOINT 2: Watch full episode in browser                 ║"
-echo "║    → Visual QA → Hard Gates → Auto-fix if needed                   ║"
-echo "║    → Critique (3 parallel) → Merge → Plan → Rebuild (loop)        ║"
-echo "║    → Lessons Learned (w/ pattern consolidation)                    ║"
+echo "║    → Creative Vision → Storyboard                                  ║"
+echo "║    → Director Review + Motion Script (merged)                      ║"
+echo "║    → Full Build (components + template) → Type Check               ║"
+echo "║    → ★ CHECKPOINT → Visual QA → Hard Gates                        ║"
+echo "║    → Critique ($NUM_CRITICS critics) → Rebuild ($MAX_CRITIQUE iter)║"
+echo "║    → Lessons (async)                                               ║"
 echo "║                                                                    ║"
 echo "║  Next steps:                                                       ║"
 echo "║    1. Preview:  npm run dev:client → #ep${EP_NUM}                  ║"

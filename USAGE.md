@@ -10,28 +10,61 @@ Quick reference for all scripts and workflows. For pipeline architecture details
 ./scripts/auto-episode.sh <topic> <ep_number> <slug> [flags]
 ```
 
+### Development Loops
+
+| Flag | What it does | When to use |
+|---|---|---|
+| `--draft` | Run full pipeline, stop after build checkpoint | See the episode fast before investing in QA/critique |
+| `--rebuild` | Skip planning, re-run build with existing artifacts | Testing toolkit/CLAUDE.md changes on an existing episode |
+| `--from=<phase>` | Resume from a specific phase | Re-run from any point (e.g. `--from=build-components`) |
+
+Valid phases for `--from`: `research`, `director-research`, `creative-vision`, `storyboard`, `director-storyboard`, `build-components`, `visual-qa`, `critique`
+
+### Quality Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--fast` | — | Preset: 1 critique iteration, 2 critics, skip lessons |
+| `--thorough` | — | Preset: 3 critique iterations, 3 critics |
+| `--max-critique=N` | `1` | Number of critique→rebuild iterations |
+| `--critics=N` | `3` | Number of parallel critics (2 or 3) |
+| `--skip-critique` | off | Skip the critique scoring loop entirely |
+| `--skip-lessons` | off | Skip cross-episode learning extraction |
+
+### Other Flags
+
 | Flag | Default | Description |
 |---|---|---|
 | `--palette=grayscale\|brand\|free` | `free` | Color constraints for the episode |
 | `--with-voice` | off | Generate ElevenLabs voiceover after build |
 | `--full-auto` | off | Skip interactive checkpoints (no browser preview pauses) |
-| `--skip-critique` | off | Skip the 3-critic scoring loop |
-| `--verbose` | off | Detailed phase logging |
+| `--verbose` | off | Stream Claude output in real-time |
+
+Explicit flags override presets: `--fast --max-critique=2` gives fast defaults but 2 critique iterations.
 
 ### Examples
 
 ```bash
-# Basic episode generation (pauses at 2 checkpoints for your review)
+# Default run (1 critique iteration, 3 critics)
 ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees
 
+# Draft mode — see the episode fast, stop before QA/critique
+./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --draft
+
+# Rebuild — re-render with existing storyboard after toolkit changes
+./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --rebuild
+
+# Resume from build (skip research + planning)
+./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --from=build-components
+
+# Fast mode — fewer critics, skip lessons
+./scripts/auto-episode.sh "Timewarp Attack" 8 timewarp --fast
+
+# Thorough mode — 3 critique iterations
+./scripts/auto-episode.sh "SHA-256 Compression" 9 sha256 --thorough --with-voice
+
 # Grayscale palette, fully autonomous
-./scripts/auto-episode.sh "Timewarp Attack" 8 timewarp --palette=grayscale --full-auto
-
-# Brand colors + voiceover
-./scripts/auto-episode.sh "SHA-256 Compression" 9 sha256 --palette=brand --with-voice
-
-# Quick iteration — skip critique loop
-./scripts/auto-episode.sh "UTXO Model" 10 utxo --skip-critique
+./scripts/auto-episode.sh "UTXO Model" 10 utxo --palette=grayscale --full-auto
 ```
 
 ### Palette Modes
@@ -44,10 +77,9 @@ Quick reference for all scripts and workflows. For pipeline architecture details
 
 ### Interactive Checkpoints
 
-Unless `--full-auto` is passed, the pipeline pauses twice to open the episode in your browser:
+Unless `--full-auto` is passed, the pipeline pauses to open the episode in your browser:
 
-- **Checkpoint 1** (after wireframe) — colored placeholder boxes showing camera zones and shots
-- **Checkpoint 2** (after real build) — the actual episode with real components
+- **Checkpoint** (after build) — the actual episode with real components
 
 At each checkpoint: `[y]` continue, `[n]` type feedback (injected into next phase), `[r]` redo the phase.
 
@@ -149,7 +181,9 @@ Output goes to `client/public/audio/ep<N>-<slug>/`.
 | Task | Command |
 |---|---|
 | Generate episode | `./scripts/auto-episode.sh "Topic" N slug` |
-| Generate episode (no pauses) | `./scripts/auto-episode.sh "Topic" N slug --full-auto` |
+| Generate (fast) | `./scripts/auto-episode.sh "Topic" N slug --fast` |
+| Generate (thorough) | `./scripts/auto-episode.sh "Topic" N slug --thorough` |
+| Generate (no pauses) | `./scripts/auto-episode.sh "Topic" N slug --full-auto` |
 | Generate with voiceover | `./scripts/auto-episode.sh "Topic" N slug --with-voice` |
 | Preview in browser | `npm run dev:client` then `/#epN` |
 | Visual QA | `node scripts/visual-qa.mjs epN` |
