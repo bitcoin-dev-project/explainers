@@ -18,7 +18,14 @@ const HEIGHT = 1080;
 
 // Path to Node 20 via nvm (needed for Vite 7)
 const NVM_DIR = process.env.NVM_DIR || join(process.env.HOME, '.nvm');
-const NODE20_BIN = join(NVM_DIR, 'versions/node/v20.20.0/bin');
+const NODE20_BIN = (() => {
+  const v = readdirSync(join(NVM_DIR, 'versions/node'))
+    .filter(d => d.startsWith('v20.'))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    .pop();
+  if (!v) { console.error('No Node 20.x found in nvm. Install with: nvm install 20'); process.exit(1); }
+  return join(NVM_DIR, 'versions/node', v, 'bin');
+})();
 
 async function waitForServer(url, timeout = 30000) {
   const start = Date.now();

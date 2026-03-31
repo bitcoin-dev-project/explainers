@@ -15,7 +15,7 @@
 
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
-import { mkdirSync, existsSync } from 'fs';
+import { mkdirSync, existsSync, readdirSync } from 'fs';
 import { spawn } from 'child_process';
 
 const EP_HASH = process.argv[2];
@@ -35,7 +35,14 @@ mkdirSync(OUTPUT_DIR, { recursive: true });
 // ─── Dev Server ─────────────────────────────────────────────────────────────
 
 const NVM_DIR = process.env.NVM_DIR || join(process.env.HOME, '.nvm');
-const NODE20_BIN = join(NVM_DIR, 'versions/node/v20.20.0/bin');
+const NODE20_BIN = (() => {
+  const v = readdirSync(join(NVM_DIR, 'versions/node'))
+    .filter(d => d.startsWith('v20.'))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    .pop();
+  if (!v) { console.error('No Node 20.x found in nvm. Install with: nvm install 20'); process.exit(1); }
+  return join(NVM_DIR, 'versions/node', v, 'bin');
+})();
 
 async function isServerRunning() {
   try {
