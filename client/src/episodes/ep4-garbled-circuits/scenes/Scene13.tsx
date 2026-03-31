@@ -24,7 +24,7 @@ function LockIcon({ open, dim }: { open?: boolean; dim?: boolean }) {
   );
 }
 
-function HeaderCell({ children, delay, width }: { children: React.ReactNode; delay: number; width: string }) {
+function HeaderCell({ children, delay, width }: { children?: React.ReactNode; delay: number; width: string }) {
   return (
     <motion.div
       className={`${width} py-[0.6vh] text-center text-[0.8vw] font-bold`}

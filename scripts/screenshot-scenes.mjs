@@ -103,34 +103,9 @@ async function screenshotScenes() {
       await page.screenshot({ path: filepath, type: 'png' });
       console.log(`  ✓ Scene ${scene}: ${filename}`);
 
-      // Advance to next scene by clicking the numbered button directly
+      // Advance to next scene using keyboard (DevControls listens for ArrowRight)
       if (scene < SCENE_COUNT - 1) {
-        const nextScene = scene + 1;
-        const advanced = await page.evaluate((targetScene) => {
-          // DevControls renders numbered buttons 1-N — click the next one
-          const buttons = document.querySelectorAll('button');
-          for (const btn of buttons) {
-            const text = btn.textContent?.trim();
-            // Match the scene number button (1-indexed in UI)
-            if (text === String(targetScene + 1)) {
-              btn.click();
-              return true;
-            }
-          }
-          // Fallback: find and click the "Next" text button
-          for (const btn of buttons) {
-            if (btn.textContent?.trim() === 'Next') {
-              btn.click();
-              return true;
-            }
-          }
-          return false;
-        }, nextScene);
-
-        if (!advanced) {
-          console.warn(`  Could not advance to scene ${nextScene}`);
-          break;
-        }
+        await page.keyboard.press('ArrowRight');
       }
     }
 

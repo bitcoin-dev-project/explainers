@@ -1169,7 +1169,7 @@ STEPS:
 1. Read the storyboard to extract: canvas dimensions, zone positions, camera journey, scene list
 2. Read client/src/preview-config.ts to see the existing format and types
 3. Overwrite client/src/preview-config.ts with the episode's config
-4. Run npx tsc --noEmit --project client/tsconfig.json to verify the config compiles
+4. Run npx tsc --noEmit --project tsconfig.json to verify the config compiles
 5. Save a copy to .auto-episode/ep${EP_NUM}-${SLUG}/preview-config-snapshot.ts for reference
 
 This is NOT the real episode — it is a camera journey test rendered by the pre-built StoryboardPreview page. You are ONLY generating a config object, not a React component.
@@ -1191,7 +1191,7 @@ You are verifying the STORYBOARD PREVIEW CONFIG for episode ${EP_NUM}: ${TOPIC}.
 Read client/src/preview-config.ts — this is the file that drives the #preview page.
 
 CHECK:
-1. TypeScript compiles: run npx tsc --noEmit --project client/tsconfig.json
+1. TypeScript compiles: run npx tsc --noEmit --project tsconfig.json
 2. The config has zones with 20-30vw gaps (no overlapping neighbors)
 3. Every scene in the storyboard has a corresponding entry in scenes[]
 4. Camera shots cover all zones (no zone is unreachable)
@@ -1300,7 +1300,7 @@ Create the episode directory and component files:
 - Write each custom component as a separate file in the episode folder
 - If the component needs helper functions or data, include them
 
-Test that the components compile: run npx tsc --noEmit --project client/tsconfig.json
+Test that the components compile: run npx tsc --noEmit --project tsconfig.json
 
 Build something beautiful. The director is watching.
 PROMPT_END
@@ -1362,7 +1362,7 @@ ALSO:
 - Register the episode in client/src/App.tsx (add route)
 - Register in client/src/pages/Home.tsx (add to episode list)
 - Export from client/src/episodes/index.ts
-- Run npx tsc --noEmit --project client/tsconfig.json to verify
+- Run npx tsc --noEmit --project tsconfig.json to verify
 
 The VideoTemplate should be a complete, working episode ready for preview.
 PROMPT_END
@@ -1375,7 +1375,7 @@ fi
 
 log "Running TypeScript type check..."
 cd "$PROJECT_DIR"
-if npx tsc --noEmit --project client/tsconfig.json 2>"$WORK_DIR/typecheck.log"; then
+if npx tsc --noEmit --project tsconfig.json 2>"$WORK_DIR/typecheck.log"; then
   log "Type check passed"
 else
   log "Type check failed — errors saved to $WORK_DIR/typecheck.log"
@@ -1492,7 +1492,7 @@ PROMPT_END
 
 else
   log "✓ No positioning issues to fix"
-  mark_done "visual-qa"
+  touch "$WORK_DIR/.done_visual-qa"
 fi
 
 fi
@@ -1579,7 +1579,7 @@ Fix instructions per rule:
 - 150+ lines: the custom visual components (excluding VideoTemplate.tsx and constants.ts) must total at least 150 lines. If under 150, the visual is too thin — add more animation states, more scene-driven behavior, more visual depth. Reference: EP8 SpongeCanvas (497 lines), EP9 HeatmapCanvas (321 lines).
 - 2+ custom components: each act needs its own visual centerpiece — one component for the whole episode means no visual variety. Build distinct visuals for different narrative acts.
 
-Read ${EP_PATH}/ files and fix each violation. Then run: npx tsc --noEmit --project client/tsconfig.json
+Read ${EP_PATH}/ files and fix each violation. Then run: npx tsc --noEmit --project tsconfig.json
 PROMPT_END
 )" --session-file "$BUILD_SESSION"
 
@@ -1616,15 +1616,16 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
   # Type check
   TYPECHECK_ERRORS=""
   cd "$PROJECT_DIR" || exit 1
-  if npx tsc --noEmit --project client/tsconfig.json 2>"$WORK_DIR/typecheck-iter${ITERATION}.log"; then
+  if npx tsc --noEmit --project tsconfig.json 2>"$WORK_DIR/typecheck-iter${ITERATION}.log"; then
     log "Type check passed"
   else
     TYPECHECK_ERRORS=$(cat "$WORK_DIR/typecheck-iter${ITERATION}.log")
     log "Type check failed — will include errors in critique"
   fi
 
-  # Count scenes
-  SCENE_COUNT=$(cd "$PROJECT_DIR" || exit 1; grep -oE 'scene[0-9]+' "${EP_PATH}/VideoTemplate.tsx" 2>/dev/null | sort -u | wc -l | tr -d ' ')
+  # Count scenes — check both VideoTemplate.tsx and constants.ts (newer episodes
+  # define SCENE_DURATIONS in constants.ts)
+  SCENE_COUNT=$(cd "$PROJECT_DIR" || exit 1; grep -oE 'scene[0-9]+' "${EP_PATH}/VideoTemplate.tsx" "${EP_PATH}/constants.ts" 2>/dev/null | grep -oE 'scene[0-9]+' | sort -u | wc -l | tr -d ' ')
   [ -z "$SCENE_COUNT" ] && SCENE_COUNT=0
 
   # ── VISUAL SCREENSHOTS ────────────────────────────────────────────────────
@@ -1964,7 +1965,7 @@ RULES:
 - Follow the plan. Don't freelance. The planner already decided what matters.
 - If a fix is marked STRUCTURAL, commit to the redesign — don't half-ass it
 - If something is in "Do NOT Touch", leave it alone
-- After all fixes, run: npx tsc --noEmit --project client/tsconfig.json
+- After all fixes, run: npx tsc --noEmit --project tsconfig.json
 - If type errors remain, fix them
 - For any positioning fixes, verify with the automated tool: node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa
   Do NOT rely on manual arithmetic — use the tool's deterministic output.

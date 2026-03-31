@@ -57,7 +57,7 @@ Two agent roles with **separated permissions**: the **Planner** reads and writes
 # Preview in browser
 npm run dev:client  # → http://localhost:5173/#ep7
 
-# Record to MP4
+# Record to MP4 (episode-specific, e.g. ep2)
 node scripts/record.mjs
 ```
 
@@ -68,7 +68,7 @@ Resumable: re-run the same command after a crash and it picks up from the last c
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 20+
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) (`claude`)
 - FFmpeg (for recording)
 - ElevenLabs API key (optional, for voiceover)

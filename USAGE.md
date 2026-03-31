@@ -115,18 +115,13 @@ node scripts/screenshot-scenes.mjs ep11 22 .auto-episode/ep11-bip54/screenshots
 
 ## Record to MP4
 
-Records the episode to video via Playwright + FFmpeg.
+Records an episode to video via Playwright + FFmpeg. Each recorder is episode-specific (hardcoded scene durations and audio paths):
 
 ```bash
-node scripts/record.mjs
-```
-
-Episode-specific recorders exist for older episodes:
-
-```bash
-node scripts/record-ep1.mjs
-node scripts/record-ep4.mjs
-node scripts/record-ep5.mjs
+node scripts/record.mjs        # ep2 (SegWit)
+node scripts/record-ep1.mjs    # ep1
+node scripts/record-ep4.mjs    # ep4
+node scripts/record-ep5.mjs    # ep5
 ```
 
 ---
@@ -135,17 +130,14 @@ node scripts/record-ep5.mjs
 
 Generates scene-by-scene MP3s using ElevenLabs. Requires `ELEVENLABS_API_KEY` in `.env`.
 
-```bash
-node scripts/generate-voiceover.mjs
-```
-
-Episode-specific voiceover scripts:
+Each voiceover script is episode-specific (hardcoded scene text and output path):
 
 ```bash
-node scripts/generate-voiceover-ep1.mjs
-node scripts/generate-voiceover-ep4.mjs
-node scripts/generate-voiceover-ep5.mjs
-node scripts/generate-voiceover-ep6.mjs
+node scripts/generate-voiceover.mjs       # ep2 (SegWit)
+node scripts/generate-voiceover-ep1.mjs   # ep1
+node scripts/generate-voiceover-ep4.mjs   # ep4
+node scripts/generate-voiceover-ep5.mjs   # ep5
+node scripts/generate-voiceover-ep6.mjs   # ep6
 ```
 
 Output goes to `client/public/audio/ep<N>-<slug>/`.
@@ -162,14 +154,14 @@ Output goes to `client/public/audio/ep<N>-<slug>/`.
 | Preview in browser | `npm run dev:client` then `/#epN` |
 | Visual QA | `node scripts/visual-qa.mjs epN` |
 | Screenshot scenes | `node scripts/screenshot-scenes.mjs epN count dir` |
-| Record to MP4 | `node scripts/record.mjs` |
-| Generate voiceover | `node scripts/generate-voiceover.mjs` |
+| Record to MP4 (ep2) | `node scripts/record.mjs` |
+| Generate voiceover (ep2) | `node scripts/generate-voiceover.mjs` |
 
 ---
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 20+
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) (`claude`) — orchestrates the multi-agent pipeline
 - FFmpeg — for MP4 recording
 - Playwright — for browser automation (recording, screenshots, visual QA)
