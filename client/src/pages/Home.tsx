@@ -64,11 +64,11 @@ const EPISODES = [
   {
     id: 'ep7',
     number: 7,
-    title: 'The Overwrite',
+    title: 'BIP 54: The Great Consensus Cleanup',
     description:
-      'How duplicate coinbase TXIDs silently destroyed 100 BTC, the accidental time bomb in block 164,384, and BIP 54\'s permanent fix.',
-    scenes: 18,
-    duration: '2:35',
+      '4 consensus bugs hiding in Bitcoin since 2009 — timewarp attack, quadratic validation, 64-byte TX forgery, duplicate coinbase — and the one-line fixes that took 7 years.',
+    scenes: 15,
+    duration: '2:18',
     status: 'draft' as const,
   },
   {
@@ -99,6 +99,46 @@ const EPISODES = [
       'A diagnostic scan of Bitcoin\'s 4 consensus bugs — the 5-year stall, the Murch-Zawy discovery, and the Great Consensus Cleanup.',
     scenes: 13,
     duration: '1:47',
+    status: 'draft' as const,
+  },
+  {
+    id: 'ep7-quantum',
+    number: 11,
+    title: "Google's Quantum Threat to Bitcoin",
+    description:
+      'How quantum computers could break elliptic curve cryptography — Shor\'s algorithm, the 9-minute race, and the path to post-quantum Bitcoin.',
+    scenes: 30,
+    duration: '4:22',
+    status: 'draft' as const,
+  },
+  {
+    id: 'ep111',
+    number: 111,
+    title: 'Worst-Case Block Validation',
+    description:
+      'How a single malicious block can take minutes to validate — the quadratic signature hashing bug, and how BIP-54 fixes it.',
+    scenes: 18,
+    duration: '2:36',
+    status: 'draft' as const,
+  },
+  {
+    id: 'ep112',
+    number: 112,
+    title: 'Duplicate Coinbase Transactions',
+    description:
+      'How two blocks can have identical coinbase transactions, why this breaks Merkle proofs and causes consensus failures, and how BIP-54 enforces uniqueness.',
+    scenes: 19,
+    duration: '2:26',
+    status: 'draft' as const,
+  },
+  {
+    id: 'ep133',
+    number: 133,
+    title: "Google's Quantum Threat to Bitcoin",
+    description:
+      'How 1,200 qubits could break elliptic curve cryptography — the 9-minute race against the block, the Taproot irony, and 1.7M BTC that can never migrate.',
+    scenes: 33,
+    duration: '4:39',
     status: 'draft' as const,
   },
 ];

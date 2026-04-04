@@ -7,9 +7,14 @@ import GarbledCircuitsVideo from '@/episodes/ep4-garbled-circuits/VideoTemplate'
 import SixtyFourByteVideo from '@/episodes/ep5-64byte-tx/VideoTemplate';
 import DuplicateTxidVideo from '@/episodes/ep6-duplicate-txid/VideoTemplate';
 import OverwriteVideo from '@/episodes/ep7-duplicate-tx-bip54/VideoTemplate';
+import BIP54CleanupVideo from '@/episodes/ep7-bip54/VideoTemplate';
 import KeccakVideo from '@/episodes/ep8-keccak-sha3/VideoTemplate';
 import WorstCaseBlockVideo from '@/episodes/ep9-worst-case-block/VideoTemplate';
 import BIP54OverviewVideo from '@/episodes/ep10-bip54-overview/VideoTemplate';
+import QuantumThreatVideo from '@/episodes/ep7-quantum-threat/VideoTemplate';
+import WorstCaseValidationVideo from '@/episodes/ep111-worst-case-validation/VideoTemplate';
+import CoinbaseUniquenessVideo from '@/episodes/ep112-coinbase-uniqueness/VideoTemplate';
+import QuantumVsBitcoinVideo from '@/episodes/ep133-quantum-vs-bitcoin/VideoTemplate';
 import CharacterDemo from '@/pages/CharacterDemo';
 
 
@@ -20,10 +25,15 @@ const ROUTES: Record<string, () => React.ReactNode> = {
   ep4: () => <GarbledCircuitsVideo />,
   ep5: () => <SixtyFourByteVideo />,
   ep6: () => <DuplicateTxidVideo />,
-  ep7: () => <OverwriteVideo />,
+  ep7: () => <BIP54CleanupVideo />,
+  'ep7-overwrite': () => <OverwriteVideo />,
   ep8: () => <KeccakVideo />,
   ep9: () => <WorstCaseBlockVideo />,
   ep10: () => <BIP54OverviewVideo />,
+  'ep7-quantum': () => <QuantumThreatVideo />,
+  ep111: () => <WorstCaseValidationVideo />,
+  ep112: () => <CoinbaseUniquenessVideo />,
+  ep133: () => <QuantumVsBitcoinVideo />,
   characters: () => <CharacterDemo />,
 };
 

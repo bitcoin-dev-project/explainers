@@ -15,8 +15,7 @@
  *
  * Issue severity:
  *   FAIL  — content that should be visible is off-screen or mostly clipped
- *   WARN  — minor clipping or low content coverage
- *   INFO  — elements from other zones off-screen (expected during camera pans)
+ *   WARN  — minor clipping, low content coverage, or far-off elements that may indicate layout issues
  *
  * Exit codes:
  *   0 — no FAIL issues
@@ -37,11 +36,11 @@ const PORT = 5173;
 const BASE_URL = `http://localhost:${PORT}`;
 const EP_URL = `${BASE_URL}/#${EP_HASH}`;
 const VIEWPORT = { width: 1920, height: 1080 };
-const SETTLE_MS = 3000; // wait for camera spring to settle
+const SETTLE_MS = 1500; // wait for scene transition animations to settle
 
 // Distance thresholds (in px) for classifying off-screen severity
 const NEAR_MISS_PX = 300;  // within 300px = likely a real positioning bug
-const FAR_OFF_PX = 800;    // > 800px = probably another zone (expected)
+const FAR_OFF_PX = 800;    // > 800px = significant layout issue
 
 if (!EP_HASH) {
   console.error('Usage: node scripts/visual-qa.mjs <episode_hash> [output_dir]');
@@ -387,14 +386,30 @@ async function runVisualQA() {
         issues.push({ severity: 'WARN', msg: `LOW COVERAGE: ${analysis.contentCoverage}% of viewport` });
       }
 
-      // INFO: far-off elements (expected zone transitions, don't affect status)
+      // WARN: far-off elements — in viewport-first layout, nothing should be far off-screen
+      if (analysis.farOffElements.length > 0) {
+        if (status === 'PASS') status = 'WARN';
+        const groups = groupByRegion(analysis.farOffElements);
+        for (const g of groups) {
+          if (g.count > 3) {
+            issues.push({
+              severity: 'WARN',
+              msg: `${g.count} elements far off-screen ${g.representative.direction} (${g.representative.distanceFromViewport}px away) — should be within viewport`,
+            });
+          } else {
+            for (const el of g.elements) {
+              issues.push({ severity: 'WARN', msg: formatIssue(el, 'FAR OFF-SCREEN') });
+            }
+          }
+        }
+      }
       const farOffCount = analysis.farOffElements.length;
 
       // ── Log ──
       const icon = { PASS: '✓', WARN: '⚠', FAIL: '✗' }[status];
       const color = { PASS: '\x1b[32m', WARN: '\x1b[33m', FAIL: '\x1b[31m' }[status];
       const reset = '\x1b[0m';
-      const infoStr = farOffCount > 0 ? ` (${farOffCount} in other zones)` : '';
+      const infoStr = farOffCount > 0 ? ` (${farOffCount} far off-screen)` : '';
 
       console.log(`  ${color}${icon}${reset} Scene ${String(scene).padStart(2)}: ${analysis.visibleElements.length} visible, ${analysis.nearMissElements.length} near-miss, ${analysis.contentCoverage}% coverage${infoStr}`);
 

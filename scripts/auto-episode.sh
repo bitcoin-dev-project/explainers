@@ -191,6 +191,36 @@ EXECUTOR_TOOLS="Read,Edit,Write,Glob,Grep,Bash,Agent,WebFetch,WebSearch"
 PLANNER_TOOLS="Read,Write,Glob,Grep"
 RESEARCH_TOOLS="Read,Write,Glob,Grep,Agent,WebFetch,WebSearch"
 
+# ─── Per-Phase Model/Effort Config ─────────────────────────────────────────
+# Tune these to balance cost vs quality. Use "" to keep defaults.
+# Models: "sonnet" | "opus" | "" (inherit default)
+# Effort: "low" | "medium" | "high" | "" (inherit default)
+EFFORT_RESEARCH="low"
+EFFORT_RESEARCH_MERGE="low"
+EFFORT_DIRECTOR="medium"
+EFFORT_CREATIVE="medium"
+EFFORT_STORYBOARD="medium"
+EFFORT_DIRECTOR_STORYBOARD="medium"
+EFFORT_BUILD=""              # keep strongest for build (default)
+EFFORT_VISUAL_QA="low"
+EFFORT_CRITIQUE="medium"
+EFFORT_CRITIQUE_MERGE="low"
+EFFORT_FIX=""                # keep strongest for fix (default)
+EFFORT_LESSONS="low"
+
+MODEL_RESEARCH=""
+MODEL_DIRECTOR=""
+MODEL_BUILD=""
+MODEL_CRITIQUE=""
+MODEL_LESSONS=""
+
+# ─── Role-Specific Context Instructions ────────────────────────────────────
+# Prepended to prompts to tell agents which CLAUDE-*.md to read
+CTX_RESEARCH="IMPORTANT: Read CLAUDE-research.md for your role-specific guidelines. You do NOT need CLAUDE-build.md or CLAUDE-critic.md."
+CTX_BUILD="IMPORTANT: Read CLAUDE-build.md for animation toolkit and implementation patterns. This is your primary reference."
+CTX_CRITIC="IMPORTANT: Read CLAUDE-critic.md for quality bar, sameness checklist, and episode registry. Focus on output quality, not implementation details."
+CTX_DIRECTOR="You are a director/planner. Read CLAUDE.md for project identity and rules. You do NOT need the build or critic guides."
+
 mkdir -p "$WORK_DIR"
 
 # ─── Cleanup ────────────────────────────────────────────────────────────────
@@ -355,6 +385,8 @@ run_phase() {
   local new_session=false
   local tools="$EXECUTOR_TOOLS"
   local critical=true
+  local model_flag=""
+  local effort_flag=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -362,6 +394,8 @@ run_phase() {
       --session-file)    session_file="$2"; shift 2 ;;
       --tools)           tools="$2"; shift 2 ;;
       --non-critical)    critical=false; shift ;;
+      --model)           model_flag="$2"; shift 2 ;;
+      --effort)          effort_flag="$2"; shift 2 ;;
       *) shift ;;
     esac
   done
@@ -387,10 +421,15 @@ run_phase() {
 
     local stream_output="$WORK_DIR/${phase_name}_stream.jsonl"
 
+    # Build extra flags for model/effort
+    local extra_flags=""
+    [ -n "$model_flag" ] && extra_flags="$extra_flags --model $model_flag"
+    [ -n "$effort_flag" ] && extra_flags="$extra_flags --effort $effort_flag"
+
     if [ -n "$resume_flag" ]; then
       cd "$PROJECT_DIR" && claude -p "$prompt" \
         --resume "$resume_flag" \
-        --allowedTools "$tools" \
+        --allowedTools "$tools" $extra_flags \
         --verbose --output-format stream-json 2>&1 | tee "$stream_output" | while IFS= read -r line; do
           # Extract and print assistant text messages in real-time
           local msg_type=$(echo "$line" | jq -r '.type // empty' 2>/dev/null)
@@ -404,7 +443,7 @@ run_phase() {
         done || exit_code=$?
     else
       cd "$PROJECT_DIR" && claude -p "$prompt" \
-        --allowedTools "$tools" \
+        --allowedTools "$tools" $extra_flags \
         --verbose --output-format stream-json 2>&1 | tee "$stream_output" | while IFS= read -r line; do
           local msg_type=$(echo "$line" | jq -r '.type // empty' 2>/dev/null)
           if [ "$msg_type" = "assistant" ]; then
@@ -446,15 +485,20 @@ run_phase() {
     local spinner_pid=$!
     trap "kill $spinner_pid 2>/dev/null" RETURN
 
+    # Build extra flags for model/effort
+    local extra_flags=""
+    [ -n "$model_flag" ] && extra_flags="$extra_flags --model $model_flag"
+    [ -n "$effort_flag" ] && extra_flags="$extra_flags --effort $effort_flag"
+
     # Run claude -p
     if [ -n "$resume_flag" ]; then
       cd "$PROJECT_DIR" && claude -p "$prompt" \
         --resume "$resume_flag" \
-        --allowedTools "$tools" \
+        --allowedTools "$tools" $extra_flags \
         --output-format json > "$raw_output" 2>&1 || exit_code=$?
     else
       cd "$PROJECT_DIR" && claude -p "$prompt" \
-        --allowedTools "$tools" \
+        --allowedTools "$tools" $extra_flags \
         --output-format json > "$raw_output" 2>&1 || exit_code=$?
     fi
 
@@ -533,14 +577,17 @@ read_artifact() {
 # On success: creates .done_<name> and .cost_<name>
 # On failure: creates .failed_<name> (NO .done_ marker)
 bg_claude() {
-  local name="$1" prompt="$2" tools="${3:-$EXECUTOR_TOOLS}"
+  local name="$1" prompt="$2" tools="${3:-$EXECUTOR_TOOLS}" effort="${4:-}" model="${5:-}"
   local raw="$WORK_DIR/${name}_raw.json"
   log "▶ Phase $name started at $(date '+%H:%M:%S') (background)"
   local bg_start=$(date +%s)
+  local extra_flags=""
+  [ -n "$model" ] && extra_flags="$extra_flags --model $model"
+  [ -n "$effort" ] && extra_flags="$extra_flags --effort $effort"
   (
     cd "$PROJECT_DIR" || exit 1
     local bg_exit=0
-    if claude -p "$prompt" --allowedTools "$tools" --output-format json > "$raw" 2>&1; then
+    if claude -p "$prompt" --allowedTools "$tools" $extra_flags --output-format json > "$raw" 2>&1; then
       jq -r '.result // empty' "$raw" > "$WORK_DIR/${name}.md" 2>/dev/null
       local cost
       cost=$(jq -r '.total_cost_usd // 0' "$raw" 2>/dev/null || echo "?")
@@ -739,6 +786,8 @@ else
 
 # ── Agent A: Technical Details ────────────────────────────────────────────
 PROMPT_TECH=$(cat <<PROMPT_END
+${CTX_RESEARCH}
+
 You are researching the TECHNICAL DETAILS of a Bitcoin/crypto topic for an animated explainer video. Your job is deep technical accuracy.
 
 TOPIC: ${TOPIC}
@@ -771,6 +820,8 @@ PROMPT_END
 
 # ── Agent B: Visual Inspiration ───────────────────────────────────────────
 PROMPT_VISUAL=$(cat <<PROMPT_END
+${CTX_RESEARCH}
+
 You are researching VISUAL INSPIRATION for an animated Bitcoin explainer video. Your job is finding the best way to SHOW this concept.
 
 TOPIC: ${TOPIC}
@@ -803,6 +854,8 @@ PROMPT_END
 
 # ── Agent C: Narrative Angle ──────────────────────────────────────────────
 PROMPT_ANGLE=$(cat <<PROMPT_END
+${CTX_RESEARCH}
+
 You are finding the SURPRISING NARRATIVE ANGLE for a Bitcoin explainer video. Your job is to find what makes this topic fascinating and what most people get wrong.
 
 TOPIC: ${TOPIC}
@@ -843,17 +896,17 @@ PROMPT_END
 
 # ── Launch all 3 in parallel ─────────────────────────────────────────────
 if ! phase_done "research-technical"; then
-  bg_claude "research-technical" "$PROMPT_TECH" "$RESEARCH_TOOLS"
+  bg_claude "research-technical" "$PROMPT_TECH" "$RESEARCH_TOOLS" "$EFFORT_RESEARCH" "$MODEL_RESEARCH"
   PID_TECH=$!
 else PID_TECH=""; fi
 
 if ! phase_done "research-visual"; then
-  bg_claude "research-visual" "$PROMPT_VISUAL" "$RESEARCH_TOOLS"
+  bg_claude "research-visual" "$PROMPT_VISUAL" "$RESEARCH_TOOLS" "$EFFORT_RESEARCH" "$MODEL_RESEARCH"
   PID_VISUAL=$!
 else PID_VISUAL=""; fi
 
 if ! phase_done "research-angle"; then
-  bg_claude "research-angle" "$PROMPT_ANGLE" "$RESEARCH_TOOLS"
+  bg_claude "research-angle" "$PROMPT_ANGLE" "$RESEARCH_TOOLS" "$EFFORT_RESEARCH" "$MODEL_RESEARCH"
   PID_ANGLE=$!
 else PID_ANGLE=""; fi
 
@@ -911,7 +964,7 @@ Save to .auto-episode/ep${EP_NUM}-${SLUG}/research.md with sections:
 - ## Visual Inspiration (how this could be visualized)
 - ## Key Facts (bullet points of essential details)
 PROMPT_END
-)" --new-session --session-file "$WORK_DIR/session_research_merge" --tools "$PLANNER_TOOLS"
+)" --new-session --session-file "$WORK_DIR/session_research_merge" --tools "$PLANNER_TOOLS" --effort "$EFFORT_RESEARCH_MERGE" --model "$MODEL_RESEARCH"
 
 # Mark overall research as done
 touch "$WORK_DIR/.done_research"
@@ -927,6 +980,8 @@ if phase_done "director-research"; then
   log "⏭ director-research already done — skipping"
 else
 run_phase "director-research" "$(cat <<PROMPT_END
+${CTX_DIRECTOR}
+
 You are a CREATIVE DIRECTOR for an animated Bitcoin explainer series. You don't build — you THINK and STEER. You cannot edit code. Your job is to review research and write creative direction.
 
 A researcher just delivered their findings on "${TOPIC}".
@@ -982,7 +1037,7 @@ Format:
 
 Be opinionated. Be decisive. Don't hedge. You're the director — DIRECT.
 PROMPT_END
-)" --new-session --session-file "$WORK_DIR/session_director1" --tools "$PLANNER_TOOLS"
+)" --new-session --session-file "$WORK_DIR/session_director1" --tools "$PLANNER_TOOLS" --effort "$EFFORT_DIRECTOR" --model "$MODEL_DIRECTOR"
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1010,14 +1065,14 @@ Your job is to design the VISUAL CONCEPT that serves the director's story arc. D
 
 Also read:
 - Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
-- CLAUDE.md — especially Animation Toolkit, Camera System, Episode Registry, and "Making Episodes That Don't Look Alike"
+- CLAUDE.md — especially Animation Toolkit, Episode Registry, and "Making Episodes That Don't Look Alike"
 - DO NOT read old episode VideoTemplate.tsx files — they use outdated patterns
 
 RULES:
 - Do NOT repeat any visual approach from the Episode Registry in CLAUDE.md
 - Do NOT default to DiagramBox, FlowRow, or other shared library components for the core visual
 - The core visual MUST NOT use CE (CanvasElement). Use GSAP timeline, SVG path morphing, CSS keyframes, Canvas 2D, or morph()
-- Use the Camera system for layout — place content in zones on a large canvas, Camera pans/zooms between them freely. The final scene MUST zoom out to reveal the entire canvas as a visual summary.
+- Use VIEWPORT-FIRST layout — all content fits within 1920×1080 (100vw × 100vh). No oversized canvases, no camera zoom/pan. Animate within the visible frame. Use morph() for persistent visuals that transform between scenes within the viewport.
 - Define episode-specific EP_COLORS and EP_SPRINGS in constants.ts
 - ${PALETTE_INSTRUCTION}
 - The director already decided the teaching approach — your job is the visual execution
@@ -1058,7 +1113,7 @@ Rate your chosen concept:
 
 Save the full creative brief to .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
 PROMPT_END
-)" --new-session --session-file "$CREATIVE_SESSION"
+)" --new-session --session-file "$CREATIVE_SESSION" --effort "$EFFORT_CREATIVE"
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1092,37 +1147,34 @@ For EACH scene, write:
 2. DURATION (simple: 6-7s, diagram: 8-10s, complex: 10-12s)
 3. ON-SCREEN CAPTION (short heading — max ~15 words, orients the viewer)
 4. TEXT INSIDE VISUAL (labels, values, formulas, field names INSIDE the diagram itself — no word limit. Think 3Blue1Brown: equations next to geometry, labels pointing at things, real values inside blocks, "2016 × 10 min = 14 Days" next to the block chain. This is where the teaching happens. The visual should be self-explanatory with its embedded text.)
-5. VISUAL DESCRIPTION (what the viewer sees — the diagram/animation with its labels)
-6. ANIMATION DETAILS (what enters, exits, morphs, specific delays)
-6. CHARACTERS (if this scene uses Alice/Bob — otherwise omit):
+5. TEACHING ANCHORS — list the exact text elements (labels, values, captions) that appear on screen so a MUTED viewer can tell what they're looking at and what changed. Every explanatory scene MUST have at least one. Title cards and mood beats are exempt.
+6. VISUAL DESCRIPTION (what the viewer sees — the diagram/animation with its labels)
+7. ANIMATION DETAILS (what enters, exits, morphs, specific delays)
+8. CHARACTERS (if this scene uses Alice/Bob — otherwise omit):
    alice: emotion=<emotion>, gesture=<gesture>, lookAt=<dir>, says="<speech>"
    bob: emotion=<emotion>, gesture=<gesture>, lookAt=<dir>, says="<speech>"
    Available emotions: neutral, happy, excited, curious, confused, thinking, surprised, worried, annoyed, explaining, laughing
    Available gestures: none, wave, point, shrug, present
    Available lookAt: center, left, right, up, down
-7. WHY THIS SCENE (what concept does it teach? how does it connect to the next?)
+9. WHY THIS SCENE (what concept does it teach? how does it connect to the next?)
 
 Mark the HIGHLIGHT SCENE (aha moment) with [HIGHLIGHT].
 Mark scenes using the SIGNATURE VISUAL with [SIGNATURE].
 
 Use AS MANY SCENES as the topic needs. 15-25 scenes is typical.
 
-CRITICAL — CANVAS ZONES + CAMERA JOURNEY:
-After the scene list, include a "Canvas Layout" section. Read the "Camera System" section in CLAUDE.md. You MUST:
-1. Define CANVAS SIZE — how big is the world? (e.g., 400vw × 200vh). Size it to fit the content, no fixed limits.
-2. Define ZONES — named regions on the canvas where content lives. Leave **20-30vw gaps** between zones so neighbors never bleed into frame during zooms.
-3. Plan the CAMERA JOURNEY — for each scene, specify what the camera does: zoom in, pull back, pan left/right/up/down, backtrack to an earlier zone. Use focus(cx, cy, scale) or fitRect(x, y, w, h) helpers.
-4. The camera journey MUST be NON-LINEAR — backtrack to earlier zones, vary zoom from 0.3 to 2.5+, pan vertically not just horizontally. NOT a left-to-right slideshow.
-5. Each shot must **zoom tight enough** that neighboring zones are fully off-screen. If you can see the edge of another zone, zoom tighter or increase the gap.
-6. **All content stays mounted** on the canvas — do NOT use sceneRange() to unmount visuals. The camera controls what's visible. This allows backtracking and the final reveal.
-7. The FINAL SCENE must zoom ALL the way out (scale 0.3-0.5) to reveal the ENTIRE canvas — showing all visuals from the episode as one connected picture. This is the visual summary/payoff.
-8. Pass \`zones\` to Camera for the dev minimap — each zone gets a label and color for visual verification.
-
-This creates dynamic, cinematic camera movement. The dev minimap catches off-screen content during development.
+CRITICAL — VIEWPORT-FIRST SCENE COMPOSITION:
+After the scene list, include a "Scene Layout" section. You MUST:
+1. **All content fits within the 1920×1080 viewport** (100vw × 100vh). No oversized canvases.
+2. For EACH scene, describe the VIEWPORT COMPOSITION — what is visible on the 1920×1080 screen and where elements are positioned.
+3. Use LAYOUT VARIETY across scenes — split-screen, full-bleed, asymmetric, centered reveals. Don't use the same layout for every scene.
+4. Prefer PERSISTENT VISUALS with morph() when content spans multiple scenes — elements stay mounted and transform position/size/style within the viewport.
+5. Use sceneRange() or CE enter/exit to swap content between scenes when appropriate — both persistent (morph) and swapping patterns are valid.
+6. Every element the viewer needs must be VISIBLE on screen. No off-screen content.
 
 Save the storyboard to .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
 PROMPT_END
-)" --session-file "$CREATIVE_SESSION"
+)" --session-file "$CREATIVE_SESSION" --effort "$EFFORT_STORYBOARD"
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1146,7 +1198,7 @@ Read ALL of these files:
 - Your previous direction: .auto-episode/ep${EP_NUM}-${SLUG}/director-research.md
 - Creative brief: .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
 - Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
-- CLAUDE.md — especially the Animation Toolkit, GSAP Utilities, Camera System, and Timing Guidelines sections
+- CLAUDE.md — especially the Animation Toolkit, GSAP Utilities, and Timing Guidelines sections
 
 ═══════════════════════════════════════════════
 PART 1: STORYBOARD REVIEW
@@ -1163,7 +1215,8 @@ CHECK:
 8. Is the signature visual actually custom and original vs. existing episodes?
 9. Does the opening start from familiar ground (not jargon)?
 10. Are real values used (not "the hash of X" but actual hex values)?
-11. If characters are used: Do Alice & Bob have distinct roles? Varied emotions? Short speech bubbles (max ~12 words)? Do they look at each other during dialogue? Non-dialogue scenes too?
+11. **Teaching anchors:** Does every explanatory scene have visible text (labels, values, captions) so a MUTED viewer can tell what they're looking at and what changed? Flag any scene with important animation but no text context.
+12. If characters are used: Do Alice & Bob have distinct roles? Varied emotions? Short speech bubbles (max ~12 words)? Do they look at each other during dialogue? Non-dialogue scenes too?
 
 Save your review to .auto-episode/ep${EP_NUM}-${SLUG}/director-storyboard.md with sections:
 ## Verdict (GO / NEEDS CHANGES)
@@ -1184,7 +1237,7 @@ FORMAT — for each scene:
 \`\`\`
 SCENE <N>: <name> (duration: <X>s)
 ────────────────────────────────
-0.0s  TRANSITION: [how we enter — camera move, wipe, cut]
+0.0s  TRANSITION: [how we enter — wipe, cut, morph, layout change]
 0.0s  [element] — [action] (e.g., "Title text — blurIn from center, scale 0.8→1.0")
 0.4s  [element] — [action with timing] (e.g., "Subtitle — slideRight, 0.3s duration")
 1.2s  [element] — [action] (e.g., "Block diagram — GSAP stagger, children cascade left→right 0.1s apart")
@@ -1196,23 +1249,24 @@ SCENE <N>: <name> (duration: <X>s)
 RULES:
 1. Every element gets a timestamp. No "then" or "after that" — use exact times.
 2. Specify the animation TECHNIQUE for each move: morph(), GSAP tl.from/tl.to, CE enter/exit, CSS @keyframes, spring config.
-3. Camera moves get their own timestamps.
+3. Layout/composition changes get their own timestamps.
 4. Mark the HIGHLIGHT SCENE's dramatic moment with ★.
 5. Include hold/breathing time at the end of each scene (1-2s minimum).
 6. Note which elements PERSIST across scenes (use morph) vs which enter/exit (use CE/GSAP).
 7. For CHARACTER scenes: timestamp each character state change (emotion, gesture, lookAt, says).
+8. **Teaching anchors get timestamps too.** Labels, values, captions, and callouts must have explicit entry times — not just the animation they annotate. A label appearing 0.5s after the element it names gives the viewer time to see the shape, then read what it is.
 
 ALSO INCLUDE at the end:
 - ## Persistent Elements
 - ## Animation Library Assignments
-- ## Camera Shots (per-scene positions using focus()/fitRect(). Final scene = full canvas reveal)
+- ## Scene Layouts (per-scene viewport compositions — what's visible and where)
 - ## Character Choreography (if applicable)
 
 Save to .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md
 
 Be PRECISE. Both documents are the developer's build spec — vague guidance = vague episode.
 PROMPT_END
-)" --new-session --session-file "$WORK_DIR/session_director2" --tools "$PLANNER_TOOLS"
+)" --new-session --session-file "$WORK_DIR/session_director2" --tools "$PLANNER_TOOLS" --effort "$EFFORT_DIRECTOR_STORYBOARD" --model "$MODEL_DIRECTOR"
 
 # Mark motion-script as done too (merged into this phase)
 touch "$WORK_DIR/.done_motion-script"
@@ -1229,96 +1283,79 @@ if phase_done "wireframe"; then
 else
 
 run_phase "wireframe" "$(cat <<PROMPT_END
-You are generating and verifying a STORYBOARD PREVIEW CONFIG for episode ${EP_NUM}: ${TOPIC} — a lightweight config that verifies the canvas zones and camera journey BEFORE any real code is built.
+You are generating and verifying a STORYBOARD PREVIEW CONFIG for episode ${EP_NUM}: ${TOPIC} — a lightweight config that describes per-scene viewport compositions BEFORE any real code is built.
 
 Read these for context:
-- Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md (especially the "Canvas Layout" section)
+- Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md (especially the "Scene Layout" section)
 - Motion script: .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md
-- CLAUDE.md — especially "Camera System"
+- CLAUDE.md
 
-YOUR JOB: Overwrite client/src/preview-config.ts with the episode's zone layout, camera shots, and scene labels. This file is rendered by a pre-built preview page at #preview — no VideoTemplate, no components, no TypeScript compilation needed.
+YOUR JOB: Overwrite client/src/preview-config.ts with the episode's per-scene viewport compositions and scene labels. This file is rendered by a pre-built preview page at #preview — no VideoTemplate, no components, no TypeScript compilation needed.
 
 The preview-config.ts file format:
 
 \`\`\`ts
-import type { CameraShot, CameraZone } from '@/lib/video/camera';
-import { focus, fitRect } from '@/lib/video/camera';
-
 export interface PreviewScene {
+  /** Short title shown on screen */
   label: string;
+  /** Optional subtitle / caption */
   text?: string;
+  /** What happens visually in this scene (shown in info panel) */
   description?: string;
+  /** Duration in ms (default: 3000 for fast preview) */
   duration?: number;
+  /** Layout pattern for this scene (e.g., 'split-screen', 'centered', 'full-bleed', 'asymmetric') */
+  layout?: string;
 }
 
 export interface PreviewConfig {
+  /** Episode title */
   title: string;
-  canvasWidth: string;
-  canvasHeight: string;
+  /** Background color */
   bg: string;
-  zones: CameraZone[];
-  shots: Record<number, CameraShot>;
+  /** Scene definitions — each scene describes what's visible in the 1920×1080 viewport */
   scenes: PreviewScene[];
 }
 
 export const previewConfig: PreviewConfig = {
   title: 'EP${EP_NUM} — ${TOPIC}',
-  canvasWidth: '300vw',  // from storyboard canvas dimensions
-  canvasHeight: '200vh',
   bg: '#0a1628',         // episode background color
-
-  zones: [
-    // From storyboard "Canvas Layout" — each zone is a content region
-    { label: 'A: Intro', x: 5, y: 10, w: 80, h: 70, color: '#3b82f6' },
-    { label: 'B: Core',  x: 120, y: 10, w: 70, h: 70, color: '#22c55e' },
-    // ... more zones from storyboard. Leave 20-30vw gaps between zones.
-  ],
-
-  shots: {
-    // Camera position per scene — use focus() and fitRect() helpers
-    0: focus(45, 45, 1.0),           // Zone A wide
-    2: focus(45, 45, 1.8),           // Zoom into Zone A
-    4: focus(155, 45, 1.3),          // Pan to Zone B
-    // ... one shot per major scene transition
-    // LAST SCENE MUST use fitRect(0, 0, canvasW, canvasH) to reveal entire canvas
-  },
 
   scenes: [
     // One entry per scene from the storyboard
-    { label: 'Title Card', text: 'The on-screen text', description: 'What happens visually' },
+    // Each scene describes what's visible within the 1920×1080 viewport
+    { label: 'Title Card', text: 'The on-screen text', description: 'What happens visually', layout: 'centered' },
     // ... use 3000ms default duration (set explicitly only if different)
   ],
 };
 \`\`\`
 
 STEPS:
-1. Read the storyboard to extract: canvas dimensions, zone positions, camera journey, scene list
+1. Read the storyboard to extract: scene list, layout descriptions, visual compositions
 2. Read client/src/preview-config.ts to see the existing format and types
 3. Overwrite client/src/preview-config.ts with the episode's config
 4. Run npx tsc --noEmit --project tsconfig.json to verify the config compiles
 5. Save a copy to .auto-episode/ep${EP_NUM}-${SLUG}/preview-config-snapshot.ts for reference
 
 THEN VERIFY (do not skip):
-- Zones have 20-30vw gaps (no overlapping neighbors)
 - Every scene in the storyboard has a corresponding entry in scenes[]
-- Camera shots cover all zones (no zone is unreachable)
-- The LAST scene's shot uses fitRect() to reveal the entire canvas
-- Zone centers match their focus() coordinates in shots
-- Camera journey has variety: zoom changes (0.3-2.5), vertical pans, backtracking
+- Each scene describes what's visible within the 1920×1080 viewport
+- Layout variety exists across scenes (not all identical compositions)
+- No scene describes content that would overflow the viewport
 - Fix any issues found, re-run tsc to verify
 
 Save verification findings to .auto-episode/ep${EP_NUM}-${SLUG}/wireframe-qa.md
 PROMPT_END
-)" --new-session --session-file "$WORK_DIR/session_wireframe"
+)" --new-session --session-file "$WORK_DIR/session_wireframe" --effort "$EFFORT_BUILD" --model "$MODEL_BUILD"
 fi
 
 # ── CHECKPOINT 1: STORYBOARD PREVIEW REVIEW ──────────────────────────────────
-# The preview config is generated. Let the user WATCH the camera journey
-# with placeholder zones at #preview before we spend tokens building components.
+# The preview config is generated. Let the user WATCH the scene compositions
+# at #preview before we spend tokens building components.
 
 if [ "$SKIP_WIREFRAME" = "true" ]; then
   log "Checkpoint 'PREVIEW' — skipped (--skip-wireframe)"
-elif ! checkpoint "STORYBOARD PREVIEW — Watch the camera journey" "feedback-wireframe.txt" "ep${EP_NUM}"; then
+elif ! checkpoint "STORYBOARD PREVIEW — Watch the scene compositions" "feedback-wireframe.txt" "ep${EP_NUM}"; then
   # User chose 'r' (redo) — delete preview config artifacts and re-run
   log "Redoing preview config phase..."
   rm -f "$WORK_DIR/.done_wireframe" "$WORK_DIR/.done_wireframe-qa"
@@ -1341,14 +1378,19 @@ if phase_done "build-components"; then
   log "⏭ build-components already done — skipping"
 else
 
-# Inline the director's build guidance + lessons from past episodes
+# Inline the director's build guidance + build memory (curated lessons)
 DIRECTOR_STORYBOARD=$(read_artifact "director-storyboard.md")
-PAST_LESSONS=""
-if [ -f "$PROJECT_DIR/.auto-episode/lessons-learned.md" ]; then
-  PAST_LESSONS=$(cat "$PROJECT_DIR/.auto-episode/lessons-learned.md")
+BUILD_MEMORY=""
+if [ -f "$PROJECT_DIR/.auto-episode/build-memory.md" ]; then
+  BUILD_MEMORY=$(cat "$PROJECT_DIR/.auto-episode/build-memory.md")
+elif [ -f "$PROJECT_DIR/.auto-episode/lessons-learned.md" ]; then
+  # Fallback: use old lessons file if build-memory.md doesn't exist yet
+  BUILD_MEMORY=$(cat "$PROJECT_DIR/.auto-episode/lessons-learned.md")
 fi
 
 run_phase "build-components" "$(cat <<PROMPT_END
+${CTX_BUILD}
+
 Now build the custom visual components for episode ${EP_NUM}: ${TOPIC}.
 
 HANDOFF FROM DIRECTOR — the director reviewed the storyboard and wrote build priorities:
@@ -1356,9 +1398,9 @@ HANDOFF FROM DIRECTOR — the director reviewed the storyboard and wrote build p
 ${DIRECTOR_STORYBOARD}
 ---END DIRECTOR BUILD GUIDANCE---
 
-${PAST_LESSONS:+---LESSONS FROM PAST EPISODES (avoid these mistakes)---
-${PAST_LESSONS}
----END LESSONS---
+${BUILD_MEMORY:+---BUILD MEMORY (curated lessons from past episodes)---
+${BUILD_MEMORY}
+---END BUILD MEMORY---
 }
 ${WIREFRAME_FEEDBACK:+---HUMAN FEEDBACK ON WIREFRAME (address this FIRST)---
 The creator watched the wireframe and said: "${WIREFRAME_FEEDBACK}"
@@ -1372,10 +1414,10 @@ Read these artifacts for full context:
 - Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
 
 $(if [ "$SKIP_WIREFRAME" = "false" ] && [ -f "$PROJECT_DIR/${EP_PATH}/VideoTemplate.tsx" ]; then
-echo "A wireframe version already exists at ${EP_PATH}/VideoTemplate.tsx with verified Camera + zones layout."
-echo "Use the wireframe's zone positions and camera shots as your foundation — replace placeholder boxes with real components at their zone positions."
+echo "A wireframe version already exists at ${EP_PATH}/VideoTemplate.tsx with verified scene compositions."
+echo "Use the wireframe's layout patterns as your foundation — replace placeholder boxes with real components."
 else
-echo "Build the episode from scratch using the storyboard's canvas layout section for zone positions and camera shots."
+echo "Build the episode from scratch using the storyboard's scene layout section for viewport compositions."
 fi)
 
 FOLLOW THE DIRECTOR'S BUILD PRIORITIES. Build the signature visual FIRST, then supporting components.
@@ -1399,8 +1441,8 @@ SIGNATURE VISUAL QUALITY FLOOR — the core visual component must have:
 - LAYERED RENDERING — depth through glow + core + highlight layers, gradients, shadows. Flat single-layer elements look cheap
 - MUST TEACH WITHOUT VOICEOVER — a viewer watching on mute should understand the core concept from the animation alone. If the visual is just decoration while text does the teaching, it fails this bar. The animation IS the explanation.
 Reference: EP8's SpongeCanvas.tsx (497 lines, Canvas 2D particle physics, 5 modes) and EP9's HeatmapCanvas.tsx (321 lines, Canvas 2D grid, 3 fill modes with heat color ramp) set the quality bar.
-- Import { Camera, focus, fitRect } from @/lib/video for layout — place content at zone positions on the canvas, Camera handles viewport movement
-- All visual components stay MOUNTED inside Camera at all times — do NOT use sceneRange() to unmount them. This enables backtracking and the final canvas reveal. Leave 20-30vw gaps between zones so neighbors don't bleed into frame.
+- Use VIEWPORT-FIRST layout — all content fits within 1920×1080 (100vw × 100vh). No oversized canvases, no Camera zoom/pan.
+- Prefer persistent visuals with morph() when content spans multiple scenes — elements stay mounted and transform within the viewport. Use sceneRange() or CE enter/exit to swap content when appropriate.
 - If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE.md for the full props API (emotions, gestures, lookAt, speech bubbles).
 
 PHASE A — BUILD CUSTOM COMPONENTS:
@@ -1414,14 +1456,14 @@ PHASE B — ASSEMBLE VIDEOTEMPLATE:
 Using your custom components, build the complete single-canvas VideoTemplate following CLAUDE.md.
 
 CHECKLIST:
-1. Import useVideoPlayer, DevControls, morph, Camera, focus, fitRect, createThemedCE, ceThemes from @/lib/video
+1. Import useVideoPlayer, DevControls, morph, createThemedCE, ceThemes from @/lib/video
 2. If the storyboard has CHARACTER scenes: also import { Character } from '@/lib/video'. Use <Character name="alice" emotion="explaining" gesture="point" lookAt="right" says="Speech text" position={{ x: '25%', y: '85%' }} size="8vw" />. Character props change per scene — use morph() or conditional rendering based on currentScene to update emotion/gesture/says per scene. Keep speech bubble text SHORT (max ~12 words).
 3. Create a themed CE: const ECE = createThemedCE(ceThemes.blurIn) — pick a theme that fits the episode mood (blurIn, clipCircle, glitch, scalePop, wipeRight, flip, rotateIn, etc). NEVER use bare CE with default fade-up.
 4. Import your custom components from the episode folder
 5. Import EP_COLORS, EP_SPRINGS from the episode's constants.ts
 6. Use morph() as the PRIMARY animation pattern — elements stay mounted and transform between scene states
-7. Use Camera for layout — wrap visual content in Camera with shots per scene using focus()/fitRect(). Place content at zone positions (absolute vw/vh) with 20-30vw gaps between zones. Pass zones prop for dev minimap. Text captions go OUTSIDE Camera in screen space. FINAL SCENE must fitRect() to reveal the entire canvas.
-8. All visual components inside Camera stay MOUNTED — do NOT use sceneRange() to unmount them. The camera controls what's visible by panning/zooming. This enables backtracking to earlier zones and the final canvas reveal.
+7. Use VIEWPORT-FIRST layout — all content within 1920×1080 viewport. Position elements with absolute + vw/vh units. Use layout variety across scenes (split-screen, full-bleed, asymmetric, centered).
+8. Prefer persistent visuals with morph() when content spans scenes — elements stay mounted and transform within the viewport. Use sceneRange() or CE enter/exit to swap content when appropriate.
 9. Use CE ONLY for text captions and labels — NOT for the core visual
 10. Use GSAP (gsap.timeline()) for choreographed sequences where morph() isn't enough
 11. Progressive reveal in every scene — staggered delays
@@ -1429,10 +1471,9 @@ CHECKLIST:
 13. Background from EP_COLORS (NOT var(--color-bg-light) by default)
 
 POSITIONING:
-- Use Camera system — place content at zone positions on the canvas using absolute vw/vh coordinates
-- Use focus(cx, cy, scale) and fitRect(x, y, w, h) helpers to compute camera shots — NOT manual x/y math
-- Pass zones array to Camera for the dev minimap — verify in browser that all zones are reachable
-- Text captions (ECE) go OUTSIDE the Camera in screen space — they're always visible regardless of camera position
+- Use VIEWPORT-FIRST layout — position all content within the 1920×1080 viewport using absolute vw/vh coordinates
+- Use varied layouts across scenes — split-screen, full-bleed, asymmetric, centered
+- All elements must be visible on screen — no off-screen content
 
 PHASE C — REGISTER AND VERIFY:
 - Add data-video="ep${EP_NUM}" attribute on the root div (required for recording)
@@ -1443,7 +1484,7 @@ PHASE C — REGISTER AND VERIFY:
 
 Build all components AND the VideoTemplate in this single pass. The episode should be complete and ready for preview.
 PROMPT_END
-)" --new-session --session-file "$BUILD_SESSION"
+)" --new-session --session-file "$BUILD_SESSION" --effort "$EFFORT_BUILD" --model "$MODEL_BUILD"
 fi
 
 # (build-template merged into build-components above — single build phase)
@@ -1572,9 +1613,8 @@ For each FAIL issue in the report:
 
 1. **Read the screenshot** for that scene to see what's actually on screen
 2. **Identify the root cause**:
-   - Is content off-screen? → adjust the camera shot for that scene using focus() or fitRect()
-   - Is the camera zoom clipping content? → reduce scale or reposition with focus(cx, cy, lowerScale)
-   - Is content at the wrong zone position? → adjust the absolute vw/vh coordinates
+   - Is content off-screen? → adjust the absolute vw/vh coordinates to bring it within the 1920×1080 viewport
+   - Is content clipped at the edge? → reposition or resize to fit within the viewport
    - Is it internal component positioning? (content offset within the component) → adjust the component
 3. **Fix the code**
 4. **Do NOT write a POSITION AUDIT comment** — the automated tool replaces manual math audits
@@ -1583,7 +1623,7 @@ For WARN issues (clipping):
 - If >40% is clipped, fix it
 - Minor edge clipping (<20%) is acceptable
 
-Ignore INFO items (elements from other zones visible during camera transitions).
+For WARN items with far off-screen elements: these indicate content outside the 1920×1080 viewport — reposition within the visible frame.
 
 IMPORTANT: Do NOT compute positioning math manually. Fix by adjusting values, then re-run the visual QA tool to verify:
   node scripts/visual-qa.mjs ep${EP_NUM} ${VQ_OUTPUT_DIR}
@@ -1594,7 +1634,7 @@ After all fixes, run: npx tsc --noEmit to verify compilation.
 
 Write a summary to .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa.md
 PROMPT_END
-)" --new-session --session-file "$QA_SESSION"
+)" --new-session --session-file "$QA_SESSION" --effort "$EFFORT_VISUAL_QA"
 
 else
   log "✓ No positioning issues to fix"
@@ -1642,12 +1682,6 @@ gate_check "Custom palette EP_COLORS defined" \
 gate_check "Custom springs EP_SPRINGS defined" \
   "grep -q 'EP_SPRINGS' '${EP_PATH}/constants.ts'"
 
-gate_check "Camera system used for layout" \
-  "grep -qE '<Camera' '${EP_PATH}/VideoTemplate.tsx'"
-
-gate_check "3+ camera shots for dynamic movement" \
-  "[ \$(grep -cE 'focus\(|fitRect\(|scale:' '${EP_PATH}/VideoTemplate.tsx' '${EP_PATH}/constants.ts' 2>/dev/null | awk -F: '{s+=\$NF}END{print s}') -ge 3 ]"
-
 gate_check "Themed CE used (createThemedCE or ceThemes)" \
   "grep -rql 'createThemedCE\|ceThemes' '${EP_PATH}/'"
 
@@ -1661,7 +1695,7 @@ gate_check "2+ custom visual components (multi-act variety)" \
   "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' ! -name 'constants.ts' | wc -l | tr -d ' ') -ge 2 ]"
 
 log ""
-log "Hard gates: $((10 - GATE_FAILS))/10 passed"
+log "Hard gates: $((8 - GATE_FAILS))/8 passed"
 
 if [ "$GATE_FAILS" -gt 0 ]; then
   log "⚠ $GATE_FAILS structural violation(s) — auto-fixing before critique"
@@ -1678,8 +1712,6 @@ Fix instructions per rule:
 - No bare <CE>: use createThemedCE(ceThemes.xxx) to make an ECE, then use <ECE> instead of <CE>
 - GSAP must be used: import { useSceneGSAP } from '@/lib/video' and add at least one choreographed sequence
 - EP_COLORS / EP_SPRINGS: define in constants.ts with episode-specific values (not generic)
-- Camera: import { Camera, focus, fitRect } from '@/lib/video' — wrap visual content in Camera with zones
-- 3+ camera shots: define at least 3 distinct camera positions using focus()/fitRect() for dynamic movement
 - Themed CE: import ceThemes from '@/lib/video', call createThemedCE with a theme (blurIn, clipCircle, glitch, etc.)
 - Custom component: the episode's core visual must be a separate .tsx file, not inline in VideoTemplate
 - 150+ lines: the custom visual components (excluding VideoTemplate.tsx and constants.ts) must total at least 150 lines. If under 150, the visual is too thin — add more animation states, more scene-driven behavior, more visual depth. Reference: EP8 SpongeCanvas (497 lines), EP9 HeatmapCanvas (321 lines).
@@ -1709,7 +1741,6 @@ PROMPT_END
   gate_recheck "GSAP used" "grep -rql 'useSceneGSAP\|gsap\.\|useGSAP' '${EP_PATH}/'"
   gate_recheck "EP_COLORS" "grep -q 'EP_COLORS' '${EP_PATH}/constants.ts'"
   gate_recheck "EP_SPRINGS" "grep -q 'EP_SPRINGS' '${EP_PATH}/constants.ts'"
-  gate_recheck "Camera used" "grep -qE '<Camera' '${EP_PATH}/VideoTemplate.tsx'"
   gate_recheck "Themed CE" "grep -rql 'createThemedCE\|ceThemes' '${EP_PATH}/'"
   gate_recheck "Custom component" "[ \$(find '${EP_PATH}/' -name '*.tsx' ! -name 'VideoTemplate.tsx' | wc -l | tr -d ' ') -ge 1 ]"
 
@@ -1777,6 +1808,8 @@ while [ $ITERATION -lt $MAX_ITERATIONS ]; do
   # ── MULTI-PERSONA PARALLEL CRITIQUE (3 agents) ──────────────────────────
 
   SHARED_CRITIQUE_CONTEXT=$(cat <<CONTEXT_END
+${CTX_CRITIC}
+
 Episode ${EP_NUM} (${TOPIC}) at ${EP_PATH}/
 
 ${BUILD_FEEDBACK:+HUMAN FEEDBACK (the creator watched and said): "${BUILD_FEEDBACK}"
@@ -1807,7 +1840,7 @@ YOUR FOCUS — score each 1-10:
 
 1. VISUAL ORIGINALITY — looks different from all episodes in the Episode Registry? Custom signature visual? Or is it another CE fade-in episode?
 2. ANIMATION VARIETY — does the core visual use GSAP, SVG morph, Canvas, CSS keyframes? CE should only be for text/labels. Score 1 if everything uses CE.
-3. CAMERA MOVEMENT — does the episode have dynamic, non-linear camera movement? Zoom in/out (scale range 0.3-2.5+)? Backtrack to earlier zones? Vertical pans? Does the FINAL SCENE zoom out to reveal the entire canvas as a visual summary? Static or left-to-right-only = low score.
+3. LAYOUT VARIETY — does the episode use different viewport compositions across scenes (split-screen, full-bleed, asymmetric, centered)? Do elements morph between positions? All content visible within 1920×1080? Same static layout every scene = low score.
 4. CUSTOM PALETTE — EP_COLORS and EP_SPRINGS in constants.ts? ${PALETTE_CRITIQUE}
 5. VISUAL POLISH — if screenshots available, READ THEM: layout balance, spacing, color harmony, text readability, professional quality. Would this stand up next to 3Blue1Brown?
 6. SIGNATURE VISUAL CRAFT — READ the core visual component code and evaluate:
@@ -1844,7 +1877,7 @@ YOUR FOCUS — score each 1-10:
    - Are there any FAIL issues (off-screen elements)? Flag as MUST FIX.
    - Are there WARN issues (clipped elements)? Flag significant ones as SHOULD FIX.
    - If no report exists, run: node scripts/visual-qa.mjs ep${EP_NUM} .auto-episode/ep${EP_NUM}-${SLUG}/visual-qa
-   - Also check: visual components inside Camera should NOT use sceneRange() (breaks backtracking + final reveal). Any empty scenes?
+   - All content must fit within the 1920×1080 viewport. Any empty scenes?
    Score 1 if report has failures. Score 10 if report shows all scenes pass.
 
 OVERALL TECHNICAL SCORE: X/30
@@ -1892,16 +1925,16 @@ PROMPT_END
   log "Launching $NUM_CRITICS parallel critics..."
 
   CRITIQUE_PIDS=()
-  bg_claude "critique-visual-iter${ITERATION}" "$PROMPT_CRITIC_VISUAL" "$PLANNER_TOOLS"
+  bg_claude "critique-visual-iter${ITERATION}" "$PROMPT_CRITIC_VISUAL" "$PLANNER_TOOLS" "$EFFORT_CRITIQUE" "$MODEL_CRITIQUE"
   PID_CV=$!
   CRITIQUE_PIDS+=("$PID_CV")
 
-  bg_claude "critique-tech-iter${ITERATION}" "$PROMPT_CRITIC_TECH" "$PLANNER_TOOLS"
+  bg_claude "critique-tech-iter${ITERATION}" "$PROMPT_CRITIC_TECH" "$PLANNER_TOOLS" "$EFFORT_CRITIQUE" "$MODEL_CRITIQUE"
   PID_CT=$!
   CRITIQUE_PIDS+=("$PID_CT")
 
   if [ "$NUM_CRITICS" -ge 3 ]; then
-    bg_claude "critique-audience-iter${ITERATION}" "$PROMPT_CRITIC_AUDIENCE" "$PLANNER_TOOLS"
+    bg_claude "critique-audience-iter${ITERATION}" "$PROMPT_CRITIC_AUDIENCE" "$PLANNER_TOOLS" "$EFFORT_CRITIQUE" "$MODEL_CRITIQUE"
     PID_CA=$!
     CRITIQUE_PIDS+=("$PID_CA")
   else
@@ -2085,7 +2118,7 @@ Format:
 Keep it to 3-5 priorities MAX. Bounded work, not a rewrite.
 If the score is below 40, priority 1 MUST be structural — polish won't save it.
 PROMPT_END
-)" --new-session --session-file "$WORK_DIR/session_planner_iter${ITERATION}" --tools "$PLANNER_TOOLS"
+)" --new-session --session-file "$WORK_DIR/session_planner_iter${ITERATION}" --tools "$PLANNER_TOOLS" --effort "$EFFORT_CRITIQUE_MERGE"
 
   # ── REBUILD [Executor — reads fix plan, executes bounded fixes] ───────────
 
@@ -2094,6 +2127,8 @@ PROMPT_END
   FIX_PLAN=$(read_artifact "fix-plan-iter${ITERATION}.md")
 
   run_phase "rebuild-iter${ITERATION}" "$(cat <<PROMPT_END
+${CTX_BUILD}
+
 A technical lead reviewed the critique and wrote a FIX PLAN for episode ${EP_NUM}: ${TOPIC}. Score: $SCORE/100. Threshold: $QUALITY_THRESHOLD/100.
 
 ---BEGIN FIX PLAN---
@@ -2116,7 +2151,7 @@ RULES:
 
 The planner's plan is your spec. Execute it precisely.
 PROMPT_END
-)" --new-session --session-file "$WORK_DIR/session_rebuild_iter${ITERATION}"
+)" --new-session --session-file "$WORK_DIR/session_rebuild_iter${ITERATION}" --effort "$EFFORT_FIX" --model "$MODEL_BUILD"
 
 done  # end critique→plan→rebuild loop
 
@@ -2172,7 +2207,8 @@ else
 
 divider "PLANNER" "CROSS-EPISODE LEARNING"
 
-LESSONS_FILE="$PROJECT_DIR/.auto-episode/lessons-learned.md"
+BUILD_MEMORY_FILE="$PROJECT_DIR/.auto-episode/build-memory.md"
+EPISODE_HISTORY_FILE="$PROJECT_DIR/.auto-episode/episode-history.md"
 
 # Gather critique history for this episode
 CRITIQUE_HISTORY=""
@@ -2198,13 +2234,18 @@ $(cat "$WORK_DIR/fix-plan-iter${i}.md")
   fi
 done
 
-EXISTING_LESSONS=""
-if [ -f "$LESSONS_FILE" ]; then
-  EXISTING_LESSONS=$(cat "$LESSONS_FILE")
+EXISTING_BUILD_MEMORY=""
+if [ -f "$BUILD_MEMORY_FILE" ]; then
+  EXISTING_BUILD_MEMORY=$(cat "$BUILD_MEMORY_FILE")
+fi
+
+EXISTING_HISTORY=""
+if [ -f "$EPISODE_HISTORY_FILE" ]; then
+  EXISTING_HISTORY=$(cat "$EPISODE_HISTORY_FILE")
 fi
 
 LESSONS_PROMPT="$(cat <<PROMPT_END
-You are extracting LESSONS LEARNED from an episode build pipeline to improve future episodes.
+You are extracting lessons from an episode build to maintain TWO separate files.
 
 Episode ${EP_NUM}: ${TOPIC}
 Final score: ${SCORE}/100 after ${ITERATION} iteration(s)
@@ -2215,55 +2256,59 @@ ${CRITIQUE_HISTORY}
 FIX PLAN HISTORY:
 ${FIX_HISTORY}
 
-EXISTING LESSONS FROM PAST EPISODES:
-${EXISTING_LESSONS:-"(none yet — this is the first episode to extract lessons)"}
+EXISTING BUILD MEMORY:
+${EXISTING_BUILD_MEMORY:-"(none yet)"}
 
-YOUR JOB:
-1. What bugs appeared and how were they fixed? (positioning, timing, visual issues)
-2. What visual approaches scored well vs poorly?
-3. What did the critique consistently flag across iterations?
-4. What took the most iterations to get right?
-5. What worked on the first try?
-6. Did the structural hard gates catch anything? (the pipeline now runs automated grep checks before critique)
+EXISTING EPISODE HISTORY:
+${EXISTING_HISTORY:-"(none yet)"}
 
-RULES:
-- Only extract lessons that are GENERALIZABLE to future episodes — not episode-specific details
-- If a lesson already exists in the file, UPDATE it (add new evidence) rather than duplicating
-- Remove lessons that turned out to be wrong or no longer relevant
+YOUR JOB — write TWO files:
+
+FILE 1: .auto-episode/build-memory.md
+This is a SHORT, CURATED file of reusable lessons injected into future build prompts.
+Rules:
+- Only GENERALIZABLE lessons — not episode-specific details
+- If a lesson already exists, UPDATE it (add evidence) rather than duplicating
+- Remove lessons that are wrong, outdated, or already documented in CLAUDE.md / CLAUDE-build.md / CLAUDE-critic.md
+- Do NOT store code patterns, file paths, or architecture (derivable from code)
 - Keep each lesson to 1-2 sentences with a concrete action item
-- Include the episode number so we can track when lessons were learned
+- Max ~30 lessons total — if over, merge or drop the least useful
+- Include episode number for provenance
 
-FORMAT for the full file (this structure is IMPORTANT — keep all sections):
+FORMAT:
+# Build Memory — Reusable Lessons
 
-# Lessons Learned — Auto-Episode Pipeline
+## Codebase Patterns
+- [pattern] (ep<N>, confirmed ep<M>)
 
-## Codebase Patterns (consolidated — most important, read first)
-Reusable patterns that future build phases should know. Keep this section short and high-signal.
-- [pattern] (learned from ep<N>, confirmed by ep<M>)
-
-## Common Bugs (watch out for these)
-- [lesson] (learned from ep<N>)
+## Common Bugs
+- [lesson] (ep<N>)
 
 ## What Scores Well
-- [lesson] (learned from ep<N>)
+- [lesson] (ep<N>)
 
 ## What Scores Poorly
-- [lesson] (learned from ep<N>)
+- [lesson] (ep<N>)
 
 ## Build Process Tips
-- [lesson] (learned from ep<N>)
+- [lesson] (ep<N>)
 
-## Episode Log
-Append-only — one entry per episode. Never delete entries, only add new ones.
-- ep<N> (<topic>): score <X>/100, <Y> iterations. Key takeaway: [one sentence]
+FILE 2: .auto-episode/episode-history.md
+Append-only log. NEVER delete existing entries. Just add the new one.
 
-Save to .auto-episode/lessons-learned.md.
-IMPORTANT: The "Episode Log" section at the bottom is APPEND-ONLY — always keep existing episode entries and add the new one. The other sections can be updated/merged/consolidated, but Episode Log only grows.
+FORMAT:
+# Episode History — Append-Only Log
+
+## Episodes
+[keep all existing entries]
+- ep${EP_NUM} (${TOPIC}): score ${SCORE}/100, ${ITERATION} iteration(s). Key takeaway: [one sentence]
+
+Save both files.
 PROMPT_END
 )"
 
 # Run lessons in background — non-blocking
-bg_claude "lessons" "$LESSONS_PROMPT" "$PLANNER_TOOLS"
+bg_claude "lessons" "$LESSONS_PROMPT" "$PLANNER_TOOLS" "$EFFORT_LESSONS" "$MODEL_LESSONS"
 LESSONS_PID=$!
 log "Lessons extraction running in background (PID $LESSONS_PID) — pipeline continues"
 
@@ -2295,7 +2340,8 @@ echo "║    critique-{visual,tech,audience}-iter*.md — Persona critiques    �
 echo "║    critique-iter*.md       — Merged critique + scores              ║"
 echo "║    fix-plan-iter*.md       — Planner's prioritized fix plans       ║"
 echo "║    screenshots-*/          — Visual captures of each scene         ║"
-echo "║    lessons-learned.md      — Cross-episode learning (cumulative)   ║"
+echo "║    build-memory.md         — Curated reusable lessons (compact)    ║"
+echo "║    episode-history.md      — Append-only episode log              ║"
 echo "║                                                                    ║"
 echo "║  Pipeline flow (v3):                                                ║"
 echo "║    Research (3 parallel) → Merge → Director Review                 ║"
