@@ -232,7 +232,7 @@ Answer the Visual Brief, then:
 5. Register in `client/src/App.tsx` routes and `client/src/pages/Home.tsx`
 6. Export from `client/src/episodes/index.ts`
 7. Preview: `npm run dev:client` → navigate to `#ep<N>`
-8. Record: `node scripts/record.mjs`
+8. Visual QA: `node scripts/visual-qa.mjs ep<N>`
 
 Episodes ep1-ep10 use older patterns. Ignore them — only follow rules in this file.
 

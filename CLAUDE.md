@@ -1,11 +1,11 @@
 # Bitcoin Error Explainer — Animated Video Series
 
-Animated Bitcoin educational explainers using React, recorded to MP4 via Playwright + FFmpeg.
+Animated Bitcoin educational explainers using React. Recorded to MP4 via Playwright + FFmpeg, with automated visual QA.
 
 ## Workspace
 - `client/src/episodes/` — each episode folder has `VideoTemplate.tsx` + custom components
 - `client/src/lib/video/` — shared hooks (`useVideoPlayer`), canvas primitives (`CE`, `morph`, `sceneRange`), `DevControls`, animation presets, diagram components
-- `scripts/` — recording (`record.mjs`), voiceover generation (`generate-voiceover.mjs`), auto-episode pipeline (`auto-episode.sh`), **visual QA (`visual-qa.mjs`)**
+- `scripts/` — auto-episode pipeline (`auto-episode.sh`), **visual QA (`visual-qa.mjs`)**, scene screenshots (`screenshot-scenes.mjs`)
 - `client/public/audio/` — scene voiceover MP3s
 - `references/` — brand guidelines, writing style references
 

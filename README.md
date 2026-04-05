@@ -46,7 +46,7 @@ Two agent roles with **separated permissions**: the **Planner** reads and writes
 |---|---|
 | Animation | React + Framer Motion + GSAP |
 | Recording | Playwright + FFmpeg (browser to MP4) |
-| Voiceover | ElevenLabs (optional) |
+| Voiceover | ElevenLabs (optional, `--with-voice`) |
 | Orchestration | Claude Code CLI with role-restricted tool sets |
 
 ---
@@ -66,8 +66,6 @@ Two agent roles with **separated permissions**: the **Planner** reads and writes
 # Preview in browser (hot reload for local iteration)
 npm run dev:client  # → http://localhost:5173/#ep7
 
-# Record to MP4 (episode-specific, e.g. ep2)
-node scripts/record.mjs
 ```
 
 Resumable: re-run the same command after a crash and it picks up from the last completed phase.
@@ -79,5 +77,6 @@ Resumable: re-run the same command after a crash and it picks up from the last c
 
 - Node.js 20+
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) (`claude`)
-- FFmpeg (for recording)
+- Playwright — for visual QA, screenshots, and recording
+- FFmpeg — for MP4 export
 - ElevenLabs API key (optional, for voiceover)

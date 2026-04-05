@@ -3,7 +3,7 @@
 Lightweight context for research-phase agents. You are researching a topic for an animated Bitcoin explainer video.
 
 ## What We Make
-Short animated explainer videos (React + Framer Motion + GSAP, recorded to MP4 via Playwright + FFmpeg). Target audience: developers and technically curious people. Style: 3Blue1Brown / Artem Kirsanov quality.
+Short animated explainer videos (React + Framer Motion + GSAP). Target audience: developers and technically curious people. Style: 3Blue1Brown / Artem Kirsanov quality.
 
 ## Teaching Approaches (pick the best one for the topic)
 1. **Problem > Failure > Fix Loop** — build naive system, show how it breaks, fix, repeat. Best for protocol design, system architecture.

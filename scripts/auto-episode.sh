@@ -61,7 +61,7 @@
 #   - Episode code in client/src/episodes/ep<N>-<slug>/
 #   - Work artifacts in .auto-episode/ep<N>-<slug>/
 #   - Pipeline log in .auto-episode/ep<N>-<slug>/pipeline.log
-#   - Cumulative lessons in .auto-episode/lessons-learned.md
+#   - Cumulative lessons in .auto-episode/build-memory.md
 #
 
 # No set -e — we handle errors explicitly per phase
@@ -76,7 +76,6 @@ WITH_VOICE=false
 FULL_AUTO=false
 VERBOSE=false
 SKIP_CRITIQUE=false
-SKIP_WIREFRAME=true    # wireframe off by default (preview route not yet built)
 PALETTE="free"
 MAX_CRITIQUE=1          # default 1 critique iteration (increase with --max-critique=N or --thorough)
 NUM_CRITICS=3           # default all 3 critics (reduce with --critics=2 or --fast)
@@ -92,7 +91,7 @@ FROM_PHASE=""           # --from=<phase>: resume from a specific phase
 # Pass 1: apply presets (set baseline)
 for arg in "${@:4}"; do
   case "$arg" in
-    --fast)     SKIP_WIREFRAME=true; MAX_CRITIQUE=1; NUM_CRITICS=2; SKIP_LESSONS=true ;;
+    --fast)     MAX_CRITIQUE=1; NUM_CRITICS=2; SKIP_LESSONS=true ;;
     --thorough) MAX_CRITIQUE=3; NUM_CRITICS=3; SKIP_LESSONS=false ;;
     --draft)    DRAFT_MODE=true; SKIP_CRITIQUE=true; SKIP_LESSONS=true ;;
     --rebuild)  REBUILD_MODE=true; SKIP_LESSONS=true ;;
@@ -106,8 +105,6 @@ for arg in "${@:4}"; do
     --full-auto)        FULL_AUTO=true ;;
     --verbose)          VERBOSE=true ;;
     --skip-critique)    SKIP_CRITIQUE=true ;;
-    --skip-wireframe)   SKIP_WIREFRAME=true ;;
-    --wireframe)        echo "Error: --wireframe is temporarily unavailable until the preview route is rebuilt"; exit 1 ;;
     --skip-lessons)     SKIP_LESSONS=true ;;
     --max-critique=*)   MAX_CRITIQUE="${arg#--max-critique=}" ;;
     --critics=*)        NUM_CRITICS="${arg#--critics=}" ;;
@@ -296,15 +293,6 @@ start_preview() {
   fi
 }
 
-stop_preview() {
-  if [ -n "$DEV_SERVER_PID" ] && kill -0 "$DEV_SERVER_PID" 2>/dev/null; then
-    log "Stopping dev server (PID $DEV_SERVER_PID)"
-    kill "$DEV_SERVER_PID" 2>/dev/null
-    wait "$DEV_SERVER_PID" 2>/dev/null
-    DEV_SERVER_PID=""
-  fi
-}
-
 # ─── Visual Checkpoint ─────────────────────────────────────────────────────
 # Opens the episode in a browser, lets the user watch it, then asks y/n.
 # If the user gives feedback, it's saved to a file for the next phase to read.
@@ -313,8 +301,6 @@ stop_preview() {
 # Returns: 0 = continue, 1 = user wants to redo (feedback saved to file)
 #
 # Skipped when --full-auto is set.
-
-CHECKPOINT_FEEDBACK=""
 
 checkpoint() {
   local label="$1"
@@ -347,7 +333,6 @@ checkpoint() {
     case "$choice" in
       y|Y)
         log "Checkpoint '$label' — approved"
-        CHECKPOINT_FEEDBACK=""
         return 0
         ;;
       n|N)
@@ -356,13 +341,11 @@ checkpoint() {
         printf "  > "
         read -r feedback
         echo "$feedback" > "$feedback_file"
-        CHECKPOINT_FEEDBACK="$feedback"
         log "Checkpoint '$label' — feedback: $feedback"
         return 0
         ;;
       r|R)
         log "Checkpoint '$label' — redo requested"
-        CHECKPOINT_FEEDBACK="__REDO__"
         return 1
         ;;
       *)
@@ -719,7 +702,7 @@ if [ "$REBUILD_MODE" = "true" ]; then
 
   # Mark all planning phases as done so they're skipped
   for phase in research-technical research-visual research-angle research research-merge \
-               director-research creative-vision storyboard director-storyboard wireframe; do
+               director-research creative-vision storyboard director-storyboard; do
     touch "$WORK_DIR/.done_${phase}"
   done
 
@@ -736,7 +719,7 @@ if [ -n "$FROM_PHASE" ]; then
   # Ordered list of all phases
   ALL_PHASES="research-technical research-visual research-angle research research-merge \
     director-research creative-vision storyboard director-storyboard \
-    wireframe build-components visual-qa structural-fix \
+    build-components visual-qa structural-fix \
     critique-visual-iter1 critique-tech-iter1 critique-audience-iter1 \
     critique-merge-iter1 fix-plan-iter1 rebuild-iter1 \
     critique-visual-iter2 critique-tech-iter2 critique-audience-iter2 \
@@ -1268,104 +1251,6 @@ Be PRECISE. Both documents are the developer's build spec — vague guidance = v
 PROMPT_END
 )" --new-session --session-file "$WORK_DIR/session_director2" --tools "$PLANNER_TOOLS" --effort "$EFFORT_DIRECTOR_STORYBOARD" --model "$MODEL_DIRECTOR"
 
-# Mark motion-script as done too (merged into this phase)
-touch "$WORK_DIR/.done_motion-script"
-fi
-
-# ═════════════════════════════════════════════════════════════════════════════
-# PHASE 5.7: WIREFRAME BUILD + QA  [Executor — skeleton layout verification]
-# ═════════════════════════════════════════════════════════════════════════════
-
-divider "EXECUTOR" "WIREFRAME BUILD + QA"
-
-if phase_done "wireframe"; then
-  log "⏭ wireframe already done — skipping"
-else
-
-run_phase "wireframe" "$(cat <<PROMPT_END
-You are generating and verifying a STORYBOARD PREVIEW CONFIG for episode ${EP_NUM}: ${TOPIC} — a lightweight config that describes per-scene viewport compositions BEFORE any real code is built.
-
-Read these for context:
-- Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md (especially the "Scene Layout" section)
-- Motion script: .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md
-- CLAUDE.md
-
-YOUR JOB: Overwrite client/src/preview-config.ts with the episode's per-scene viewport compositions and scene labels. This file is rendered by a pre-built preview page at #preview — no VideoTemplate, no components, no TypeScript compilation needed.
-
-The preview-config.ts file format:
-
-\`\`\`ts
-export interface PreviewScene {
-  /** Short title shown on screen */
-  label: string;
-  /** Optional subtitle / caption */
-  text?: string;
-  /** What happens visually in this scene (shown in info panel) */
-  description?: string;
-  /** Duration in ms (default: 3000 for fast preview) */
-  duration?: number;
-  /** Layout pattern for this scene (e.g., 'split-screen', 'centered', 'full-bleed', 'asymmetric') */
-  layout?: string;
-}
-
-export interface PreviewConfig {
-  /** Episode title */
-  title: string;
-  /** Background color */
-  bg: string;
-  /** Scene definitions — each scene describes what's visible in the 1920×1080 viewport */
-  scenes: PreviewScene[];
-}
-
-export const previewConfig: PreviewConfig = {
-  title: 'EP${EP_NUM} — ${TOPIC}',
-  bg: '#0a1628',         // episode background color
-
-  scenes: [
-    // One entry per scene from the storyboard
-    // Each scene describes what's visible within the 1920×1080 viewport
-    { label: 'Title Card', text: 'The on-screen text', description: 'What happens visually', layout: 'centered' },
-    // ... use 3000ms default duration (set explicitly only if different)
-  ],
-};
-\`\`\`
-
-STEPS:
-1. Read the storyboard to extract: scene list, layout descriptions, visual compositions
-2. Read client/src/preview-config.ts to see the existing format and types
-3. Overwrite client/src/preview-config.ts with the episode's config
-4. Run npx tsc --noEmit --project tsconfig.json to verify the config compiles
-5. Save a copy to .auto-episode/ep${EP_NUM}-${SLUG}/preview-config-snapshot.ts for reference
-
-THEN VERIFY (do not skip):
-- Every scene in the storyboard has a corresponding entry in scenes[]
-- Each scene describes what's visible within the 1920×1080 viewport
-- Layout variety exists across scenes (not all identical compositions)
-- No scene describes content that would overflow the viewport
-- Fix any issues found, re-run tsc to verify
-
-Save verification findings to .auto-episode/ep${EP_NUM}-${SLUG}/wireframe-qa.md
-PROMPT_END
-)" --new-session --session-file "$WORK_DIR/session_wireframe" --effort "$EFFORT_BUILD" --model "$MODEL_BUILD"
-fi
-
-# ── CHECKPOINT 1: STORYBOARD PREVIEW REVIEW ──────────────────────────────────
-# The preview config is generated. Let the user WATCH the scene compositions
-# at #preview before we spend tokens building components.
-
-if [ "$SKIP_WIREFRAME" = "true" ]; then
-  log "Checkpoint 'PREVIEW' — skipped (--skip-wireframe)"
-elif ! checkpoint "STORYBOARD PREVIEW — Watch the scene compositions" "feedback-wireframe.txt" "ep${EP_NUM}"; then
-  # User chose 'r' (redo) — delete preview config artifacts and re-run
-  log "Redoing preview config phase..."
-  rm -f "$WORK_DIR/.done_wireframe" "$WORK_DIR/.done_wireframe-qa"
-  exec "$0" "$TOPIC" "$EP_NUM" "$SLUG" "${@:4}"
-fi
-
-# If user gave feedback (chose 'n'), read it for the build phase
-WIREFRAME_FEEDBACK=""
-if [ -f "$WORK_DIR/feedback-wireframe.txt" ]; then
-  WIREFRAME_FEEDBACK=$(cat "$WORK_DIR/feedback-wireframe.txt")
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1383,9 +1268,6 @@ DIRECTOR_STORYBOARD=$(read_artifact "director-storyboard.md")
 BUILD_MEMORY=""
 if [ -f "$PROJECT_DIR/.auto-episode/build-memory.md" ]; then
   BUILD_MEMORY=$(cat "$PROJECT_DIR/.auto-episode/build-memory.md")
-elif [ -f "$PROJECT_DIR/.auto-episode/lessons-learned.md" ]; then
-  # Fallback: use old lessons file if build-memory.md doesn't exist yet
-  BUILD_MEMORY=$(cat "$PROJECT_DIR/.auto-episode/lessons-learned.md")
 fi
 
 run_phase "build-components" "$(cat <<PROMPT_END
@@ -1402,23 +1284,13 @@ ${BUILD_MEMORY:+---BUILD MEMORY (curated lessons from past episodes)---
 ${BUILD_MEMORY}
 ---END BUILD MEMORY---
 }
-${WIREFRAME_FEEDBACK:+---HUMAN FEEDBACK ON WIREFRAME (address this FIRST)---
-The creator watched the wireframe and said: "${WIREFRAME_FEEDBACK}"
-Incorporate this feedback into the build. This takes priority over other guidance.
----END HUMAN FEEDBACK---
-}
 Read these artifacts for full context:
 - Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
 - Motion script: .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md (TIMESTAMPED animation spec — follow this for timing)
 - Creative brief: .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
 - Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
 
-$(if [ "$SKIP_WIREFRAME" = "false" ] && [ -f "$PROJECT_DIR/${EP_PATH}/VideoTemplate.tsx" ]; then
-echo "A wireframe version already exists at ${EP_PATH}/VideoTemplate.tsx with verified scene compositions."
-echo "Use the wireframe's layout patterns as your foundation — replace placeholder boxes with real components."
-else
-echo "Build the episode from scratch using the storyboard's scene layout section for viewport compositions."
-fi)
+Build the episode from scratch using the storyboard's scene layout section for viewport compositions.
 
 FOLLOW THE DIRECTOR'S BUILD PRIORITIES. Build the signature visual FIRST, then supporting components.
 
@@ -2337,7 +2209,6 @@ echo "║    creative-brief.md       — Visual concept + signature visual     �
 echo "║    storyboard.md           — Scene-by-scene plan                   ║"
 echo "║    director-storyboard.md  — Director's build guidance             ║"
 echo "║    motion-script.md        — Timestamped animation spec            ║"
-echo "║    wireframe-qa.md         — Wireframe positioning verification    ║"
 echo "║    critique-{visual,tech,audience}-iter*.md — Persona critiques    ║"
 echo "║    critique-iter*.md       — Merged critique + scores              ║"
 echo "║    fix-plan-iter*.md       — Planner's prioritized fix plans       ║"
