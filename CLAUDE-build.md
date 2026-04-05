@@ -182,10 +182,10 @@ useGSAP(container, () => {
 Generic structural primitives: `DiagramBox`, `Arrow`, `FlowRow`, `Connector`, `TreeNode`, `TableGrid`, `Badge`, `DataCell`, `Brace`, `HighlightBox`. **Supporting elements only.** Episode's core visual must be a custom component.
 
 ## Animation Presets (`@/lib/video/animations`)
-- `sceneTransitions.clipCircle` — iris wipe reveal
-- `sceneTransitions.perspectiveFlip` — 3D card flip
-- `sceneTransitions.morphExpand` — shape morphs from circle to rectangle
-- `sceneTransitions.wipe` — left-to-right reveal
+- `sceneTransitions.fadeBlur` — blur in/out
+- `sceneTransitions.scaleFade` — scale + fade
+- `sceneTransitions.slideLeft` — slide from right
+- `sceneTransitions.crossDissolve` — simple opacity crossfade
 - `elementAnimations.blurIn` — blur-to-sharp focus pull
 - `elementAnimations.perspectiveRotateIn` — 3D rotate entrance
 - `elementAnimations.elasticScale` — bouncy scale-up

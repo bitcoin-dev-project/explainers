@@ -102,7 +102,7 @@ const EPISODES = [
     status: 'draft' as const,
   },
   {
-    id: 'ep7-quantum',
+    id: 'ep11',
     number: 11,
     title: "Google's Quantum Threat to Bitcoin",
     description:
@@ -112,8 +112,8 @@ const EPISODES = [
     status: 'draft' as const,
   },
   {
-    id: 'ep111',
-    number: 111,
+    id: 'ep12',
+    number: 12,
     title: 'Worst-Case Block Validation',
     description:
       'How a single malicious block can take minutes to validate — the quadratic signature hashing bug, and how BIP-54 fixes it.',
@@ -122,8 +122,8 @@ const EPISODES = [
     status: 'draft' as const,
   },
   {
-    id: 'ep112',
-    number: 112,
+    id: 'ep13',
+    number: 13,
     title: 'Duplicate Coinbase Transactions',
     description:
       'How two blocks can have identical coinbase transactions, why this breaks Merkle proofs and causes consensus failures, and how BIP-54 enforces uniqueness.',
@@ -132,9 +132,9 @@ const EPISODES = [
     status: 'draft' as const,
   },
   {
-    id: 'ep133',
-    number: 133,
-    title: "Google's Quantum Threat to Bitcoin",
+    id: 'ep14',
+    number: 14,
+    title: "Google's Quantum Threat to Bitcoin (v2)",
     description:
       'How 1,200 qubits could break elliptic curve cryptography — the 9-minute race against the block, the Taproot irony, and 1.7M BTC that can never migrate.',
     scenes: 33,

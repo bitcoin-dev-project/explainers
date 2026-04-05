@@ -21,7 +21,7 @@
 #   ★  CHECKPOINT — opens browser, you watch episode, approve/redirect
 #   7. Visual QA + Structural Hard Gates
 #   8. Critique (2-3 parallel critics) → Fix → Rebuild (1 iteration default)
-#   9. Voiceover (optional, --with-voice)
+#   9. Transcript (optional, --with-transcript)
 #   10. Lessons learned (async, skippable)
 #
 # Development loops:
@@ -40,7 +40,7 @@
 #
 # Flags:
 #   --palette=MODE  grayscale | brand | free (default: free)
-#   --with-voice    Generate voiceover transcript + audio sync
+#   --with-transcript  Generate voiceover transcript + ElevenLabs script (does NOT call the API)
 #   --full-auto     Skip all human checkpoints
 #   --max-critique=N  Number of critique→rebuild iterations (default: 1)
 #   --critics=N     Number of parallel critics: 2 or 3 (default: 3)
@@ -54,7 +54,7 @@
 #   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --rebuild
 #   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --from=build-components
 #   ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --fast
-#   ./scripts/auto-episode.sh "Timewarp Attack" 8 timewarp --thorough --with-voice
+#   ./scripts/auto-episode.sh "Timewarp Attack" 8 timewarp --thorough --with-transcript
 #   ./scripts/auto-episode.sh "SHA-256" 9 sha256 --palette=brand --full-auto
 #
 # Output:
@@ -68,7 +68,7 @@
 
 # ─── Args ────────────────────────────────────────────────────────────────────
 
-TOPIC="${1:?Usage: auto-episode.sh <topic> <ep_number> <slug> [--draft] [--rebuild] [--from=<phase>] [--fast] [--thorough] [--palette=grayscale|brand|free] [--with-voice] [--full-auto] [--max-critique=N] [--critics=N] [--skip-critique] [--skip-lessons] [--verbose]}"
+TOPIC="${1:?Usage: auto-episode.sh <topic> <ep_number> <slug> [--draft] [--rebuild] [--from=<phase>] [--fast] [--thorough] [--palette=grayscale|brand|free] [--with-transcript] [--full-auto] [--max-critique=N] [--critics=N] [--skip-critique] [--skip-lessons] [--verbose]}"
 EP_NUM="${2:?Missing episode number}"
 SLUG="${3:?Missing slug (e.g., merkle-trees)}"
 
@@ -101,7 +101,8 @@ done
 # Pass 2: explicit flags override presets
 for arg in "${@:4}"; do
   case "$arg" in
-    --with-voice)       WITH_VOICE=true ;;
+    --with-transcript)  WITH_VOICE=true ;;
+    --with-voice)       WITH_VOICE=true ;; # deprecated alias
     --full-auto)        FULL_AUTO=true ;;
     --verbose)          VERBOSE=true ;;
     --skip-critique)    SKIP_CRITIQUE=true ;;
@@ -1048,7 +1049,8 @@ Your job is to design the VISUAL CONCEPT that serves the director's story arc. D
 
 Also read:
 - Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
-- CLAUDE.md — especially Animation Toolkit, Episode Registry, and "Making Episodes That Don't Look Alike"
+- CLAUDE-build.md — especially Animation Toolkit and "Making Episodes That Don't Look Alike"
+- CLAUDE.md — especially the Episode Registry
 - DO NOT read old episode VideoTemplate.tsx files — they use outdated patterns
 
 RULES:
@@ -1181,7 +1183,8 @@ Read ALL of these files:
 - Your previous direction: .auto-episode/ep${EP_NUM}-${SLUG}/director-research.md
 - Creative brief: .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
 - Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
-- CLAUDE.md — especially the Animation Toolkit, GSAP Utilities, and Timing Guidelines sections
+- CLAUDE-build.md — especially Animation Toolkit and GSAP Utilities
+- CLAUDE.md — for Timing Guidelines
 
 ═══════════════════════════════════════════════
 PART 1: STORYBOARD REVIEW
@@ -1295,7 +1298,7 @@ Build the episode from scratch using the storyboard's scene layout section for v
 FOLLOW THE DIRECTOR'S BUILD PRIORITIES. Build the signature visual FIRST, then supporting components.
 
 IMPORTANT:
-- Read CLAUDE.md first — especially the Animation Toolkit section and the Characters section
+- Read CLAUDE-build.md first — especially the Animation Toolkit section and the Characters section
 - Build components FIRST, before VideoTemplate.tsx
 - Use the MOTION SCRIPT for exact timing — every element has a timestamp, follow it
 - Each component should be self-contained and animated
@@ -1315,7 +1318,7 @@ SIGNATURE VISUAL QUALITY FLOOR — the core visual component must have:
 Reference: EP8's SpongeCanvas.tsx (497 lines, Canvas 2D particle physics, 5 modes) and EP9's HeatmapCanvas.tsx (321 lines, Canvas 2D grid, 3 fill modes with heat color ramp) set the quality bar.
 - Use VIEWPORT-FIRST layout — all content fits within 1920×1080 (100vw × 100vh). No oversized canvases, no Camera zoom/pan.
 - Prefer persistent visuals with morph() when content spans multiple scenes — elements stay mounted and transform within the viewport. Use sceneRange() or CE enter/exit to swap content when appropriate.
-- If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE.md for the full props API (emotions, gestures, lookAt, speech bubbles).
+- If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE-build.md for the full props API (emotions, gestures, lookAt, speech bubbles).
 
 PHASE A — BUILD CUSTOM COMPONENTS:
 1. Create the episode directory: mkdir -p ${EP_PATH}/
@@ -2032,11 +2035,13 @@ log "Final quality score: $SCORE/100 after $ITERATION iteration(s)"
 fi  # end skip-critique check
 
 # ═════════════════════════════════════════════════════════════════════════════
-# VOICEOVER (Optional)  [Executor]
+# TRANSCRIPT + AUDIO SCRIPT (Optional)  [Executor]
+# Generates transcript.txt and a Node.js script for ElevenLabs.
+# Does NOT call the API — you run the generated script manually afterward.
 # ═════════════════════════════════════════════════════════════════════════════
 
 if [ "$WITH_VOICE" = "true" ]; then
-  divider "EXECUTOR" "VOICEOVER & AUDIO SYNC"
+  divider "EXECUTOR" "TRANSCRIPT & AUDIO SCRIPT"
 
   run_phase "voiceover" "$(cat <<PROMPT_END
 Now create the voiceover for episode ${EP_NUM}: ${TOPIC}.
@@ -2068,7 +2073,7 @@ Do NOT call the ElevenLabs API — just create the script.
 PROMPT_END
 )" --new-session --session-file "$WORK_DIR/session_voiceover"
 else
-  log "Skipping voiceover (use --with-voice to include)"
+  log "Skipping transcript (use --with-transcript to include)"
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════

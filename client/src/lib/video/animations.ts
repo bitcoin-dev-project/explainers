@@ -22,7 +22,7 @@ export const easings = {
   expoOut: { ease: [0.16, 1, 0.3, 1] } as Transition,
 } as const;
 
-// Scene transitions for AnimatePresence
+// Scene transitions for AnimatePresence (only members used by existing episodes)
 export const sceneTransitions = {
   fadeBlur: {
     initial: { opacity: 0, filter: 'blur(20px)' },
@@ -42,83 +42,11 @@ export const sceneTransitions = {
     exit: { opacity: 0, x: -100 },
     transition: { duration: 0.6, ease: 'circOut' },
   },
-  slideRight: {
-    initial: { opacity: 0, x: -100 },
-    animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: 100 },
-    transition: { duration: 0.6, ease: 'circOut' },
-  },
-  slideUp: {
-    initial: { opacity: 0, y: 50 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -50 },
-    transition: { duration: 0.6, ease: 'circOut' },
-  },
-  wipe: {
-    initial: { clipPath: 'inset(0 100% 0 0)' },
-    animate: { clipPath: 'inset(0 0% 0 0)' },
-    exit: { clipPath: 'inset(0 0 0 100%)' },
-    transition: { duration: 0.8, ease: [0.4, 0, 0.2, 1] },
-  },
-  zoomThrough: {
-    initial: { opacity: 0, scale: 0.5 },
-    animate: { opacity: 1, scale: 1 },
-    exit: { opacity: 0, scale: 1.5 },
-    transition: { duration: 1, ease: 'circOut' },
-  },
   crossDissolve: {
     initial: { opacity: 0 },
     animate: { opacity: 1 },
     exit: { opacity: 0 },
     transition: { duration: 0.6, ease: [0.4, 0, 0.2, 1] },
-  },
-  clipCircle: {
-    initial: { clipPath: 'circle(0% at 50% 50%)' },
-    animate: { clipPath: 'circle(100% at 50% 50%)' },
-    exit: { clipPath: 'circle(0% at 50% 50%)' },
-    transition: { duration: 1, ease: [0.4, 0, 0.2, 1] },
-  },
-  clipPolygon: {
-    initial: { clipPath: 'polygon(50% 0%, 50% 0%, 50% 100%, 50% 100%)' },
-    animate: { clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)' },
-    exit: { clipPath: 'polygon(50% 0%, 50% 0%, 50% 100%, 50% 100%)' },
-    transition: { duration: 0.8, ease: [0.4, 0, 0.2, 1] },
-  },
-  perspectiveFlip: {
-    initial: { opacity: 0, rotateY: -90, transformPerspective: 1200 },
-    animate: { opacity: 1, rotateY: 0, transformPerspective: 1200 },
-    exit: { opacity: 0, rotateY: 90, transformPerspective: 1200 },
-    transition: { duration: 0.8, ease: [0.4, 0, 0.2, 1] },
-  },
-  morphExpand: {
-    initial: { opacity: 0, scale: 0.3, borderRadius: '50%' },
-    animate: { opacity: 1, scale: 1, borderRadius: '0%' },
-    exit: { opacity: 0, scale: 2.5, filter: 'blur(30px)' },
-    transition: { duration: 1, ease: [0.16, 1, 0.3, 1] },
-  },
-  splitHorizontal: {
-    initial: { clipPath: 'inset(50% 0 50% 0)' },
-    animate: { clipPath: 'inset(0% 0 0% 0)' },
-    exit: { clipPath: 'inset(50% 0 50% 0)' },
-    transition: { duration: 0.8, ease: [0.4, 0, 0.2, 1] },
-  },
-  splitVertical: {
-    initial: { clipPath: 'inset(0 50% 0 50%)' },
-    animate: { clipPath: 'inset(0 0% 0 0%)' },
-    exit: { clipPath: 'inset(0 50% 0 50%)' },
-    transition: { duration: 0.8, ease: [0.4, 0, 0.2, 1] },
-  },
-  pushLeft: {
-    initial: { x: '100%' },
-    animate: { x: 0 },
-    exit: { x: '-100%' },
-    transition: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
-  },
-  pushRight: {
-    initial: { x: '-100%' },
-    animate: { x: 0 },
-    exit: { x: '100%' },
-    transition: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
   },
 } as const;
 
