@@ -2180,9 +2180,11 @@ Read the final VideoTemplate.tsx to understand the scene flow. Write a transcrip
 Save to ${EP_PATH}/transcript.txt in the standard format (see existing transcripts).
 
 STEP 2: Create scripts/generate-voiceover-ep${EP_NUM}.mjs
-Follow the pattern from scripts/generate-voiceover-ep5.mjs.
-Voice ID: InRyolULHTXjegISsXuJ, model: eleven_multilingual_v2
-Settings: { stability: 0.6, similarity_boost: 0.8, style: 0.3 }
+Create a standalone Node.js script that:
+- Reads ELEVENLABS_API_KEY from .env
+- Uses Voice ID: InRyolULHTXjegISsXuJ, model: eleven_multilingual_v2
+- Settings: { stability: 0.6, similarity_boost: 0.8, style: 0.3 }
+- Takes the transcript scenes and generates MP3s to: ${AUDIO_PATH}/
 Output to: ${AUDIO_PATH}/
 
 STEP 3: Update SCENE_DURATIONS = estimated_audio_length + 2500ms buffer.

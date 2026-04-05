@@ -36,3 +36,10 @@ vite.config.ts.*
 
 # Dev research assets
 attached_assets/
+
+# External tools / dependencies
+.external/
+
+# Episode-specific scripts (use generic record.mjs / generate-voiceover.mjs)
+scripts/record-ep*.mjs
+scripts/generate-voiceover-ep*.mjs
