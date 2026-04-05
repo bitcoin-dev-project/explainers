@@ -41,8 +41,7 @@ export { Camera, focus, fitRect, visibility } from './camera';
 export type { CameraShot, CameraZone } from './camera';
 
 // Audio sync — voiceover playback + timing helpers
-// Available in ./audio-sync.ts but not re-exported: no episodes use it yet.
-// Episodes currently hand-roll audio playback. Adopt useAudioSync or remove the file.
+export { useAudioSync, syncTo, durationsFromAudio } from './audio-sync';
 export { useEpisodeAudioExport } from './export-audio';
 export type { EpisodeAudioExport } from './export-audio';
 

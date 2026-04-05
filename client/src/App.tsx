@@ -35,13 +35,18 @@ const ROUTES: Record<string, () => React.ReactNode> = {
   ep6: () => <DuplicateTxidVideo />,
   ep7: () => <BIP54CleanupVideo />,
   ep7b: () => <OverwriteVideo />,
+  'ep7-overwrite': () => <OverwriteVideo />,
   ep8: () => <KeccakVideo />,
   ep9: () => <WorstCaseBlockVideo />,
   ep10: () => <BIP54OverviewVideo />,
   ep11: () => <QuantumThreatVideo />,
+  'ep7-quantum': () => <QuantumThreatVideo />,
   ep12: () => <WorstCaseValidationVideo />,
+  ep111: () => <WorstCaseValidationVideo />,
   ep13: () => <CoinbaseUniquenessVideo />,
+  ep112: () => <CoinbaseUniquenessVideo />,
   ep14: () => <QuantumVsBitcoinVideo />,
+  ep133: () => <QuantumVsBitcoinVideo />,
   characters: () => <CharacterDemo />,
 };
 
