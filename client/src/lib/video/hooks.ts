@@ -6,6 +6,23 @@ declare global {
   interface Window {
     startRecording?: () => Promise<void>;
     stopRecording?: () => void;
+    __recordingStartScene?: number;
+    __episodeInfo?: {
+      currentScene: number;
+      totalScenes: number;
+      durationsArray: number[];
+      totalDuration: number;
+      hasEnded: boolean;
+      isPaused: boolean;
+    };
+    __episodeControls?: {
+      togglePause: () => void;
+      play: () => void;
+      pause: () => void;
+      goToScene: (index: number) => void;
+      next: () => void;
+      prev: () => void;
+    };
   }
 }
 
@@ -81,16 +98,24 @@ export interface UseVideoPlayerReturn {
 
 export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerReturn {
   const { durations, onVideoEnd, loop = true } = options;
+  const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
+  const isRecordMode = hashParams.has('record');
+  const isArmedRecord = isRecordMode && hashParams.has('arm');
+  const shouldAutoStartLocalCapture = isRecordMode && hashParams.has('local');
 
   // Captured once on mount -- durations must be a static object
   const sceneKeys = useRef(Object.keys(durations)).current;
   const totalScenes = sceneKeys.length;
   const durationsArray = useRef(Object.values(durations)).current;
   const totalDuration = durationsArray.reduce((a, b) => a + b, 0);
+  const initialScene = isRecordMode
+    ? Math.max(0, Math.min(window.__recordingStartScene ?? 0, totalScenes - 1))
+    : 0;
+  const shouldLoop = isRecordMode ? false : loop;
 
-  const [currentScene, setCurrentScene] = useState(0);
+  const [currentScene, setCurrentScene] = useState(initialScene);
   const [hasEnded, setHasEnded] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(isArmedRecord);
   const [speed, setSpeed] = useState(1);
   const [seekCount, setSeekCount] = useState(0);
 
@@ -100,6 +125,8 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
   const seekTargetRef = useRef<number | null>(null); // Pending seek remaining (video-time)
 
   const togglePause = () => setIsPaused(p => !p);
+  const play = () => setIsPaused(false);
+  const pause = () => setIsPaused(true);
 
   // Helper: sum durations of scenes before index
   const sumBefore = (scene: number) => {
@@ -108,15 +135,30 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
     return sum;
   };
 
-  // Setup local recording fallback and start on mount
+  // Always expose episode state + controls for external tools (record.mjs, visual-qa)
+  useEffect(() => {
+    window.__episodeInfo = {
+      currentScene,
+      totalScenes,
+      durationsArray,
+      totalDuration,
+      hasEnded,
+      isPaused,
+    };
+  });
+
+  // Expose a manual browser-capture fallback. Only auto-start when explicitly
+  // requested with ?record&local=1 so automated exports do not trigger a prompt.
   useEffect(() => {
     setupLocalRecording();
-    window.startRecording?.();
-  }, []);
+    if (shouldAutoStartLocalCapture) {
+      window.startRecording?.();
+    }
+  }, [shouldAutoStartLocalCapture]);
 
   // Scene advancement (pause-aware, speed-aware)
   useEffect(() => {
-    if (hasEnded && !loop) return;
+    if (hasEnded && !shouldLoop) return;
     if (isPaused) return;
 
     // Determine video-time duration for this scene segment
@@ -145,7 +187,7 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
           setHasEnded(true);
         }
 
-        if (loop) {
+        if (shouldLoop) {
           setCurrentScene(0);
         }
       }
@@ -158,7 +200,7 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
       const videoElapsed = realElapsed * speed;
       remainingRef.current = Math.max(0, scheduledRef.current - videoElapsed);
     };
-  }, [currentScene, totalScenes, durationsArray, hasEnded, loop, onVideoEnd, isPaused, speed, seekCount]);
+  }, [currentScene, totalScenes, durationsArray, hasEnded, shouldLoop, onVideoEnd, isPaused, speed, seekCount]);
 
   // getCurrentTime — returns absolute video-time position in ms
   // Uses a ref so the returned function reference is stable
@@ -226,9 +268,17 @@ export function useVideoPlayer(options: UseVideoPlayerOptions): UseVideoPlayerRe
     if (index >= 0 && index < totalScenes) {
       remainingRef.current = 0;
       seekTargetRef.current = null;
+      setHasEnded(false);
       setCurrentScene(index);
+      setSeekCount(c => c + 1);
     }
   };
+
+  // Expose controls for external tools (record.mjs uses these in ?record mode
+  // where DevControls is not mounted and keyboard shortcuts are unavailable)
+  useEffect(() => {
+    window.__episodeControls = { togglePause, play, pause, goToScene, next, prev };
+  });
 
   return {
     currentScene,

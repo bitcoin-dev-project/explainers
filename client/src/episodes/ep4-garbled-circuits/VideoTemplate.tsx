@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useVideoPlayer, DevControls } from '@/lib/video';
+import { useVideoPlayer, useEpisodeAudioExport, DevControls } from '@/lib/video';
 import { PersistentGate } from './scenes/PersistentGate';
 import { Scene1 } from './scenes/Scene1';
 import { Scene2 } from './scenes/Scene2';
@@ -77,6 +77,12 @@ const GATE_LAST  = 15;
 export default function GarbledCircuitsVideoTemplate() {
   const player = useVideoPlayer({ durations: SCENE_DURATIONS });
   const { currentScene } = player;
+
+  useEpisodeAudioExport({
+    kind: 'scenes',
+    scenePaths: SCENE_AUDIO,
+    offsetMs: 400,
+  });
 
   const showGate = currentScene >= GATE_FIRST && currentScene <= GATE_LAST;
 

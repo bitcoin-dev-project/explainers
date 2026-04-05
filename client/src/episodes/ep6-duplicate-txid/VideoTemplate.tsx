@@ -13,7 +13,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useVideoPlayer, DevControls, CE, morph } from '@/lib/video';
+import { useVideoPlayer, useEpisodeAudioExport, DevControls, CE, morph } from '@/lib/video';
 import { CoinbaseCard } from './CoinbaseCard';
 import type { CardFieldData } from './CoinbaseCard';
 import { HashComputation } from './HashComputation';
@@ -235,6 +235,12 @@ function HistoryRow({ blocks, txid, loss, delay = 0 }: { blocks: string; txid: s
 export default function VideoTemplate() {
   const player = useVideoPlayer({ durations: SCENE_DURATIONS });
   const s = player.currentScene;
+
+  useEpisodeAudioExport({
+    kind: 'continuous',
+    src: FULL_AUDIO,
+    sceneStartTimes: SCENE_START_TIMES,
+  });
 
   // ── Audio playback (one continuous file) ─────────────────────────
   // Audio starts ~400ms after scene enters. Seeks on non-sequential nav.

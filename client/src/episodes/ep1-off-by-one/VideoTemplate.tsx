@@ -1,4 +1,4 @@
-import { useVideoPlayer, DevControls, CE, morph } from '@/lib/video';
+import { useVideoPlayer, useEpisodeAudioExport, DevControls, CE, morph } from '@/lib/video';
 import { springs } from '@/lib/video/animations';
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
@@ -143,6 +143,12 @@ const SCENE_START_TIMES = [
 export default function VideoTemplate() {
   const player = useVideoPlayer({ durations: SCENE_DURATIONS });
   const s = player.currentScene;
+
+  useEpisodeAudioExport({
+    kind: 'continuous',
+    src: FULL_AUDIO,
+    sceneStartTimes: SCENE_START_TIMES,
+  });
 
   /* Quiz reveal state for scene 13 */
   const [quizRevealed, setQuizRevealed] = useState(false);

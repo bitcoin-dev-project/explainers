@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { useVideoPlayer, DevControls } from '@/lib/video';
+import { useVideoPlayer, useEpisodeAudioExport, DevControls } from '@/lib/video';
 import { Scene1 } from './scenes/Scene1';
 import { Scene2 } from './scenes/Scene2';
 import { Scene3 } from './scenes/Scene3';
@@ -37,6 +37,12 @@ export default function SegWitVideoTemplate() {
     durations: SCENE_DURATIONS,
   });
   const { currentScene } = player;
+
+  useEpisodeAudioExport({
+    kind: 'scenes',
+    scenePaths: SCENE_AUDIO,
+    offsetMs: 400,
+  });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 

@@ -17,6 +17,14 @@ import CoinbaseUniquenessVideo from '@/episodes/ep112-coinbase-uniqueness/VideoT
 import QuantumVsBitcoinVideo from '@/episodes/ep133-quantum-vs-bitcoin/VideoTemplate';
 import CharacterDemo from '@/pages/CharacterDemo';
 
+declare global {
+  interface Window {
+    __recordingHarness?: {
+      start: (scene?: number) => void;
+    };
+    __recordingStartScene?: number;
+  }
+}
 
 const ROUTES: Record<string, () => React.ReactNode> = {
   ep1: () => <OffByOneVideo />,
@@ -41,20 +49,61 @@ function getRoute() {
   return window.location.hash.replace('#', '').split('?')[0] || '';
 }
 
+function getHashParams() {
+  return new URLSearchParams(window.location.hash.split('?')[1] || '');
+}
+
 export default function App() {
   const [route, setRoute] = useState(getRoute);
+  const [recordShouldRender, setRecordShouldRender] = useState(() => !getHashParams().has('arm'));
+  const [recordMountVersion, setRecordMountVersion] = useState(0);
 
   useEffect(() => {
-    const onHashChange = () => setRoute(getRoute());
+    const syncFromHash = () => {
+      setRoute(getRoute());
+
+      const params = getHashParams();
+      const isRecording = params.has('record');
+      const isArmed = params.has('arm');
+
+      if (!isRecording || !isArmed) {
+        setRecordShouldRender(true);
+        delete window.__recordingHarness;
+        delete window.__recordingStartScene;
+        return;
+      }
+
+      setRecordShouldRender(false);
+      window.__recordingHarness = {
+        start: (scene = 0) => {
+          window.__recordingStartScene = scene;
+          setRecordMountVersion(v => v + 1);
+          setRecordShouldRender(true);
+        },
+      };
+    };
+
+    syncFromHash();
+    const onHashChange = () => syncFromHash();
     window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
+    return () => {
+      window.removeEventListener('hashchange', onHashChange);
+      delete window.__recordingHarness;
+      delete window.__recordingStartScene;
+    };
   }, []);
 
   const renderVideo = ROUTES[route];
-  const isRecording = window.location.hash.includes('record');
+  const hashParams = getHashParams();
+  const isRecording = hashParams.has('record');
+  const isArmedRecording = isRecording && hashParams.has('arm');
 
   if (!renderVideo) {
     return <Home />;
+  }
+
+  if (isArmedRecording && !recordShouldRender) {
+    return <div className="h-screen w-full bg-black" data-record-ready="false" />;
   }
 
   return (
@@ -70,7 +119,9 @@ export default function App() {
           Back
         </a>
       )}
-      {renderVideo()}
+      <div key={isArmedRecording ? `${route}:${recordMountVersion}` : route}>
+        {renderVideo()}
+      </div>
     </div>
   );
 }

@@ -146,6 +146,50 @@ node scripts/screenshot-scenes.mjs ep11 22 .auto-episode/ep11-bip54/screenshots
 
 ---
 
+## Record to MP4
+
+Export any episode to MP4 video. Two modes: draft (fast, for review) and final (high quality, for YouTube).
+
+```bash
+node scripts/record.mjs <episode_hash> [flags]
+```
+
+### Modes
+
+| Flag | Resolution | Encode | Use case |
+|---|---|---|---|
+| (default) | 1920x1080 @ 60fps | `-crf 18 -preset medium` | YouTube upload |
+| `--draft` | 1920x1080 @ 30fps | `-crf 28 -preset ultrafast` | Quick review |
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| `--draft` | Fast encode for quick review |
+| `--scenes <from>-<to>` | Only export a range of scenes (e.g. `--scenes 5-10`) |
+| `--with-audio` | Mux voiceover MP3s into the video |
+| `--fps <N>` | Custom framerate (default: 30 draft, 60 final) |
+
+### Examples
+
+```bash
+# Final quality — for YouTube
+node scripts/record.mjs ep7
+
+# Quick draft — see how it looks
+node scripts/record.mjs ep7 --draft
+
+# Draft of just scenes 5-10
+node scripts/record.mjs ep7 --draft --scenes 5-10
+
+# Final with voiceover audio
+node scripts/record.mjs ep7 --with-audio
+```
+
+Output: `./ep7-final.mp4` or `./ep7-draft.mp4`
+
+---
+
 ## Generate Voiceover
 
 Voiceover scripts are generated per-episode by the pipeline when using `--with-voice`. They call the ElevenLabs API to produce scene-by-scene MP3s.
@@ -171,6 +215,8 @@ Requires `ELEVENLABS_API_KEY` in `.env`. Output goes to `client/public/audio/ep<
 | Preview in browser | `npm run dev:client` then `/#epN` |
 | Visual QA | `node scripts/visual-qa.mjs epN` |
 | Screenshot scenes | `node scripts/screenshot-scenes.mjs epN count dir` |
+| Record to MP4 (final) | `node scripts/record.mjs epN` |
+| Record to MP4 (draft) | `node scripts/record.mjs epN --draft` |
 | Generate voiceover | `node scripts/generate-voiceover-ep<N>.mjs` |
 
 ---

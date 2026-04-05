@@ -20,7 +20,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useVideoPlayer, DevControls, CE } from '@/lib/video';
+import { useVideoPlayer, useEpisodeAudioExport, DevControls, CE } from '@/lib/video';
 import { springs } from '@/lib/video/animations';
 import { Badge, HighlightBox, Arrow } from '@/lib/video/diagrams';
 
@@ -478,6 +478,12 @@ function TwoViewTrees({ delay = 0 }: { delay?: number }) {
 export default function VideoTemplate() {
   const player = useVideoPlayer({ durations: SCENE_DURATIONS });
   const s = player.currentScene;
+
+  useEpisodeAudioExport({
+    kind: 'continuous',
+    src: FULL_AUDIO,
+    sceneStartTimes: SCENE_START_TIMES,
+  });
 
   const isDark = s >= 10 && s <= 12;
   const bgColor = isDark ? C.darkBg : s === 14 ? C.fixBg : 'var(--color-bg-light)';

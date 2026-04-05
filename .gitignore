@@ -16,6 +16,7 @@ Thumbs.db
 *.mp4
 *.webm
 _combined_audio.mp3
+.record-tmp-*
 
 # Vite
 vite.config.ts.*

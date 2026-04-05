@@ -42,6 +42,8 @@ export type { CameraShot, CameraZone } from './camera';
 
 // Audio sync — voiceover playback + timing helpers
 export { useAudioSync, syncTo, durationsFromAudio } from './audio-sync';
+export { useEpisodeAudioExport } from './export-audio';
+export type { EpisodeAudioExport } from './export-audio';
 
 // GSAP utilities — imperative timeline animations
 export { useGSAP, useTimeline, useSceneGSAP, gsapPresets } from './gsap-utils';
