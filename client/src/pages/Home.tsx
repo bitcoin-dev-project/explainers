@@ -141,6 +141,26 @@ const EPISODES = [
     duration: '4:39',
     status: 'draft' as const,
   },
+  {
+    id: 'ep116',
+    number: 15,
+    title: 'The Great Consensus Cleanup (BIP 54)',
+    description:
+      '4 hidden consensus bugs that have gone unfixed for over a decade — timewarp attack, quadratic hashing, 64-byte TX forgery, duplicate coinbase — and the one soft fork that fixes them all.',
+    scenes: 23,
+    duration: '3:12',
+    status: 'draft' as const,
+  },
+  {
+    id: 'ep12-shrincs',
+    number: 16,
+    title: 'SHRINCS & SHRIMPS: Post-Quantum Signatures',
+    description:
+      '324-byte hash-based signatures for Bitcoin — from Lamport to Winternitz to XMSS to SPHINCS+ to the breakthrough: SHRINCS combines stateful speed with stateless safety.',
+    scenes: 20,
+    duration: '2:50',
+    status: 'draft' as const,
+  },
 ];
 
 export default function Home() {

@@ -13,3 +13,5 @@ export { default as QuantumThreatVideo } from './ep7-quantum-threat/VideoTemplat
 export { default as WorstCaseValidationVideo } from './ep111-worst-case-validation/VideoTemplate';
 export { default as CoinbaseUniquenessVideo } from './ep112-coinbase-uniqueness/VideoTemplate';
 export { default as QuantumVsBitcoinVideo } from './ep133-quantum-vs-bitcoin/VideoTemplate';
+export { default as GreatConsensusCleanupVideo } from './ep116-great-consensus-cleanup/VideoTemplate';
+export { default as ShrincsShrimpsVideo } from './ep12-shrincs-shrimps/VideoTemplate';

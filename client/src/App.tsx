@@ -15,6 +15,8 @@ import QuantumThreatVideo from '@/episodes/ep7-quantum-threat/VideoTemplate';
 import WorstCaseValidationVideo from '@/episodes/ep111-worst-case-validation/VideoTemplate';
 import CoinbaseUniquenessVideo from '@/episodes/ep112-coinbase-uniqueness/VideoTemplate';
 import QuantumVsBitcoinVideo from '@/episodes/ep133-quantum-vs-bitcoin/VideoTemplate';
+import GreatConsensusCleanupVideo from '@/episodes/ep116-great-consensus-cleanup/VideoTemplate';
+import ShrincsShrimpsVideo from '@/episodes/ep12-shrincs-shrimps/VideoTemplate';
 import CharacterDemo from '@/pages/CharacterDemo';
 
 declare global {
@@ -47,6 +49,10 @@ const ROUTES: Record<string, () => React.ReactNode> = {
   ep112: () => <CoinbaseUniquenessVideo />,
   ep14: () => <QuantumVsBitcoinVideo />,
   ep133: () => <QuantumVsBitcoinVideo />,
+  ep116: () => <GreatConsensusCleanupVideo />,
+  ep15: () => <GreatConsensusCleanupVideo />,
+  'ep12-shrincs': () => <ShrincsShrimpsVideo />,
+  ep16: () => <ShrincsShrimpsVideo />,
   characters: () => <CharacterDemo />,
 };
 
