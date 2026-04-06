@@ -2238,6 +2238,9 @@ if [ "$WITH_VOICE" = "true" ]; then
 echo "║    4. Generate audio: node scripts/generate-voiceover-ep${EP_NUM}.mjs ║"
 fi
 echo "║                                                                    ║"
+echo "║  When done:                                                        ║"
+echo "║    ./scripts/archive-episode.sh ep${EP_NUM}-${SLUG}               ║"
+echo "║                                                                    ║"
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 echo ""
 

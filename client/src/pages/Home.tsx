@@ -1,166 +1,18 @@
 import { motion } from 'framer-motion';
 
-const EPISODES = [
-  {
-    id: 'ep1',
-    number: 1,
-    title: "Satoshi's Off-By-One Error",
-    description:
-      'How a fencepost bug in Bitcoin\'s difficulty retargeting code biases difficulty upward by ~0.05%.',
-    scenes: 15,
-    duration: '3:10',
-    status: 'published' as const,
-  },
-  {
-    id: 'ep2',
-    number: 2,
-    title: 'How SegWit Addresses Work',
-    description:
-      'Decoding a Bech32 address step by step — from human-readable prefix to witness public key hash.',
-    scenes: 8,
-    duration: '2:09',
-    status: 'published' as const,
-  },
-  {
-    id: 'ep3',
-    number: 3,
-    title: 'SHA-256 Padding',
-    description:
-      'Part 1 of SHA-256 internals: how Bitcoin pads a message before hashing it.',
-    scenes: 13,
-    duration: '1:54',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep4',
-    number: 4,
-    title: 'Garbled Circuits',
-    description:
-      'How two parties can compute a function together without revealing their private inputs.',
-    scenes: 15,
-    duration: '1:59',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep5',
-    number: 5,
-    title: 'The 64-Byte Transaction Bug',
-    description:
-      'How a Merkle tree ambiguity lets attackers fake SPV proofs — and the BIP 54 fix that bans it.',
-    scenes: 16,
-    duration: '6:24',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep6',
-    number: 6,
-    title: "Bitcoin's Identity Crisis",
-    description:
-      'How duplicate coinbase txids corrupted the UTXO set, and the 15-year journey from BIP 30 to BIP 54 to fix it.',
-    scenes: 19,
-    duration: '2:36',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep7',
-    number: 7,
-    title: 'BIP 54: The Great Consensus Cleanup',
-    description:
-      '4 consensus bugs hiding in Bitcoin since 2009 — timewarp attack, quadratic validation, 64-byte TX forgery, duplicate coinbase — and the one-line fixes that took 7 years.',
-    scenes: 15,
-    duration: '2:18',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep8',
-    number: 8,
-    title: 'Keccak SHA3-256: The Sponge',
-    description:
-      'Why Bitcoin double-hashes to avoid length extension — and how Keccak\'s sponge construction solves it by design.',
-    scenes: 17,
-    duration: '2:35',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep9',
-    number: 9,
-    title: 'Worst-Case Block Validation',
-    description:
-      'How a single crafted transaction can stall a node for 10 hours — and how BIP 54 caps it to 3 seconds.',
-    scenes: 14,
-    duration: '1:56',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep10',
-    number: 10,
-    title: 'BIP 54: The 4 Bugs Bitcoin Never Fixed',
-    description:
-      'A diagnostic scan of Bitcoin\'s 4 consensus bugs — the 5-year stall, the Murch-Zawy discovery, and the Great Consensus Cleanup.',
-    scenes: 13,
-    duration: '1:47',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep11',
-    number: 11,
-    title: "Google's Quantum Threat to Bitcoin",
-    description:
-      'How quantum computers could break elliptic curve cryptography — Shor\'s algorithm, the 9-minute race, and the path to post-quantum Bitcoin.',
-    scenes: 30,
-    duration: '4:22',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep12',
-    number: 12,
-    title: 'Worst-Case Block Validation',
-    description:
-      'How a single malicious block can take minutes to validate — the quadratic signature hashing bug, and how BIP-54 fixes it.',
-    scenes: 18,
-    duration: '2:36',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep13',
-    number: 13,
-    title: 'Duplicate Coinbase Transactions',
-    description:
-      'How two blocks can have identical coinbase transactions, why this breaks Merkle proofs and causes consensus failures, and how BIP-54 enforces uniqueness.',
-    scenes: 19,
-    duration: '2:26',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep14',
-    number: 14,
-    title: "Google's Quantum Threat to Bitcoin (v2)",
-    description:
-      'How 1,200 qubits could break elliptic curve cryptography — the 9-minute race against the block, the Taproot irony, and 1.7M BTC that can never migrate.',
-    scenes: 33,
-    duration: '4:39',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep116',
-    number: 15,
-    title: 'The Great Consensus Cleanup (BIP 54)',
-    description:
-      '4 hidden consensus bugs that have gone unfixed for over a decade — timewarp attack, quadratic hashing, 64-byte TX forgery, duplicate coinbase — and the one soft fork that fixes them all.',
-    scenes: 23,
-    duration: '3:12',
-    status: 'draft' as const,
-  },
-  {
-    id: 'ep12-shrincs',
-    number: 16,
-    title: 'SHRINCS & SHRIMPS: Post-Quantum Signatures',
-    description:
-      '324-byte hash-based signatures for Bitcoin — from Lamport to Winternitz to XMSS to SPHINCS+ to the breakthrough: SHRINCS combines stateful speed with stateless safety.',
-    scenes: 20,
-    duration: '2:50',
-    status: 'draft' as const,
-  },
+// Episodes currently in the working tree. Updated by the pipeline during build
+// and cleaned by archive-episode.sh when done.
+const EPISODES: {
+  id: string;
+  number: number;
+  title: string;
+  description: string;
+  scenes: number;
+  duration: string;
+  status: 'published' | 'draft';
+}[] = [
+  // New episodes are added here by the build phase of auto-episode.sh.
+  // After recording, archive-episode.sh removes the entry.
 ];
 
 export default function Home() {
@@ -181,46 +33,54 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid gap-5">
-            {EPISODES.map((ep, i) => (
-              <motion.a
-                key={ep.id}
-                href={`#${ep.id}`}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 + i * 0.08, duration: 0.4 }}
-                className="group flex gap-5 rounded-xl border border-text-primary/10 bg-white/50 p-5 transition-all hover:border-primary/40 hover:bg-white/80 hover:shadow-md"
-              >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 font-mono text-lg font-bold text-primary">
-                  {ep.number}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="font-display text-lg font-semibold text-text-primary group-hover:text-primary transition-colors">
-                      {ep.title}
-                    </h2>
-                    {ep.status === 'draft' && (
-                      <span className="rounded-full bg-text-muted/15 px-2 py-0.5 text-xs font-medium text-text-muted">
-                        Draft
-                      </span>
-                    )}
+          {EPISODES.length === 0 ? (
+            <div className="rounded-xl border border-text-primary/10 bg-white/50 p-12 text-center">
+              <p className="text-text-muted">
+                No episodes in the working tree. Run <code className="rounded bg-text-primary/5 px-1.5 py-0.5 font-mono text-sm">auto-episode.sh</code> to generate one.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-5">
+              {EPISODES.map((ep, i) => (
+                <motion.a
+                  key={ep.id}
+                  href={`#${ep.id}`}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 + i * 0.08, duration: 0.4 }}
+                  className="group flex gap-5 rounded-xl border border-text-primary/10 bg-white/50 p-5 transition-all hover:border-primary/40 hover:bg-white/80 hover:shadow-md"
+                >
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 font-mono text-lg font-bold text-primary">
+                    {ep.number}
                   </div>
-                  <p className="mt-1 text-sm text-text-muted leading-relaxed">
-                    {ep.description}
-                  </p>
-                  <div className="mt-2 flex gap-4 text-xs text-text-muted/70 font-mono">
-                    <span>{ep.scenes} scenes</span>
-                    <span>{ep.duration}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-display text-lg font-semibold text-text-primary group-hover:text-primary transition-colors">
+                        {ep.title}
+                      </h2>
+                      {ep.status === 'draft' && (
+                        <span className="rounded-full bg-text-muted/15 px-2 py-0.5 text-xs font-medium text-text-muted">
+                          Draft
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-sm text-text-muted leading-relaxed">
+                      {ep.description}
+                    </p>
+                    <div className="mt-2 flex gap-4 text-xs text-text-muted/70 font-mono">
+                      <span>{ep.scenes} scenes</span>
+                      <span>{ep.duration}</span>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center text-text-muted/40 group-hover:text-primary transition-colors">
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M7.5 5L12.5 10L7.5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-              </motion.a>
-            ))}
-          </div>
+                  <div className="flex items-center text-text-muted/40 group-hover:text-primary transition-colors">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                      <path d="M7.5 5L12.5 10L7.5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                </motion.a>
+              ))}
+            </div>
+          )}
         </motion.div>
       </div>
     </div>

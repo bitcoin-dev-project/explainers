@@ -1,17 +1,2 @@
-export { default as OffByOneVideo } from './ep1-off-by-one/VideoTemplate';
-export { default as SegWitVideo } from './ep2-segwit/VideoTemplate';
-export { default as SHA256Video } from './ep3-sha256/VideoTemplate';
-export { default as GarbledCircuitsVideo } from './ep4-garbled-circuits/VideoTemplate';
-export { default as SixtyFourByteVideo } from './ep5-64byte-tx/VideoTemplate';
-export { default as DuplicateTxidVideo } from './ep6-duplicate-txid/VideoTemplate';
-export { default as OverwriteVideo } from './ep7-duplicate-tx-bip54/VideoTemplate';
-export { default as BIP54CleanupVideo } from './ep7-bip54/VideoTemplate';
-export { default as KeccakVideo } from './ep8-keccak-sha3/VideoTemplate';
-export { default as WorstCaseBlockVideo } from './ep9-worst-case-block/VideoTemplate';
-export { default as BIP54OverviewVideo } from './ep10-bip54-overview/VideoTemplate';
-export { default as QuantumThreatVideo } from './ep7-quantum-threat/VideoTemplate';
-export { default as WorstCaseValidationVideo } from './ep111-worst-case-validation/VideoTemplate';
-export { default as CoinbaseUniquenessVideo } from './ep112-coinbase-uniqueness/VideoTemplate';
-export { default as QuantumVsBitcoinVideo } from './ep133-quantum-vs-bitcoin/VideoTemplate';
-export { default as GreatConsensusCleanupVideo } from './ep116-great-consensus-cleanup/VideoTemplate';
-export { default as ShrincsShrimpsVideo } from './ep12-shrincs-shrimps/VideoTemplate';
+// Episode exports are registered here during development.
+// After recording, run: ./scripts/archive-episode.sh ep<N>-<slug>

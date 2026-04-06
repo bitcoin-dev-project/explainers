@@ -12,7 +12,8 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Generated videos & temp build artifacts
+# Generated videos & rendered output
+output/
 *.mp4
 *.webm
 _combined_audio.mp3

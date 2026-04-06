@@ -1,0 +1,10 @@
+# Archived episodes — don't waste tokens reading old code
+archive/
+
+# Build artifacts
+node_modules/
+dist/
+output/
+
+# Pipeline work artifacts (read selectively, not wholesale)
+.auto-episode/*/screenshots-*

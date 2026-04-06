@@ -1,22 +1,5 @@
 import { useState, useEffect } from 'react';
 import Home from '@/pages/Home';
-import OffByOneVideo from '@/episodes/ep1-off-by-one/VideoTemplate';
-import SegWitVideo from '@/episodes/ep2-segwit/VideoTemplate';
-import SHA256Video from '@/episodes/ep3-sha256/VideoTemplate';
-import GarbledCircuitsVideo from '@/episodes/ep4-garbled-circuits/VideoTemplate';
-import SixtyFourByteVideo from '@/episodes/ep5-64byte-tx/VideoTemplate';
-import DuplicateTxidVideo from '@/episodes/ep6-duplicate-txid/VideoTemplate';
-import OverwriteVideo from '@/episodes/ep7-duplicate-tx-bip54/VideoTemplate';
-import BIP54CleanupVideo from '@/episodes/ep7-bip54/VideoTemplate';
-import KeccakVideo from '@/episodes/ep8-keccak-sha3/VideoTemplate';
-import WorstCaseBlockVideo from '@/episodes/ep9-worst-case-block/VideoTemplate';
-import BIP54OverviewVideo from '@/episodes/ep10-bip54-overview/VideoTemplate';
-import QuantumThreatVideo from '@/episodes/ep7-quantum-threat/VideoTemplate';
-import WorstCaseValidationVideo from '@/episodes/ep111-worst-case-validation/VideoTemplate';
-import CoinbaseUniquenessVideo from '@/episodes/ep112-coinbase-uniqueness/VideoTemplate';
-import QuantumVsBitcoinVideo from '@/episodes/ep133-quantum-vs-bitcoin/VideoTemplate';
-import GreatConsensusCleanupVideo from '@/episodes/ep116-great-consensus-cleanup/VideoTemplate';
-import ShrincsShrimpsVideo from '@/episodes/ep12-shrincs-shrimps/VideoTemplate';
 import CharacterDemo from '@/pages/CharacterDemo';
 
 declare global {
@@ -28,31 +11,9 @@ declare global {
   }
 }
 
+// Add new episode imports and routes here during development.
+// After recording, run: ./scripts/archive-episode.sh ep<N>-<slug>
 const ROUTES: Record<string, () => React.ReactNode> = {
-  ep1: () => <OffByOneVideo />,
-  ep2: () => <SegWitVideo />,
-  ep3: () => <SHA256Video />,
-  ep4: () => <GarbledCircuitsVideo />,
-  ep5: () => <SixtyFourByteVideo />,
-  ep6: () => <DuplicateTxidVideo />,
-  ep7: () => <BIP54CleanupVideo />,
-  ep7b: () => <OverwriteVideo />,
-  'ep7-overwrite': () => <OverwriteVideo />,
-  ep8: () => <KeccakVideo />,
-  ep9: () => <WorstCaseBlockVideo />,
-  ep10: () => <BIP54OverviewVideo />,
-  ep11: () => <QuantumThreatVideo />,
-  'ep7-quantum': () => <QuantumThreatVideo />,
-  ep12: () => <WorstCaseValidationVideo />,
-  ep111: () => <WorstCaseValidationVideo />,
-  ep13: () => <CoinbaseUniquenessVideo />,
-  ep112: () => <CoinbaseUniquenessVideo />,
-  ep14: () => <QuantumVsBitcoinVideo />,
-  ep133: () => <QuantumVsBitcoinVideo />,
-  ep116: () => <GreatConsensusCleanupVideo />,
-  ep15: () => <GreatConsensusCleanupVideo />,
-  'ep12-shrincs': () => <ShrincsShrimpsVideo />,
-  ep16: () => <ShrincsShrimpsVideo />,
   characters: () => <CharacterDemo />,
 };
 
