@@ -4,6 +4,7 @@
  *
  * Opens an episode in Playwright, steps through every scene, and checks
  * that content is actually visible on screen using getBoundingClientRect().
+ * Also detects text-on-text overlaps (labels, captions, values overlapping each other).
  * No LLM math — deterministic, pixel-accurate verification.
  *
  * Usage:
@@ -14,7 +15,7 @@
  *   node scripts/visual-qa.mjs ep11 ./visual-qa-out    # save screenshots + report
  *
  * Issue severity:
- *   FAIL  — content that should be visible is off-screen or mostly clipped
+ *   FAIL  — content off-screen, mostly clipped, or text overlapping other text
  *   WARN  — minor clipping, low content coverage, or far-off elements that may indicate layout issues
  *
  * Exit codes:
@@ -235,6 +236,115 @@ function analyzeScene({ viewportW, viewportH, nearMissPx, farOffPx }) {
   return results;
 }
 
+// ─── Text Overlap Detection (runs in browser) ──────────────────────────
+
+function analyzeTextOverlap({ viewportW, viewportH }) {
+  const results = { overlaps: [], crowded: [] };
+
+  const videoRoot = document.querySelector('[data-video]');
+  if (!videoRoot) return results;
+
+  // Collect all visible text elements with their bounding rects
+  const textEls = [];
+  const selectors = 'h1, h2, h3, h4, h5, h6, p, span, [data-text], label, text';
+
+  for (const el of videoRoot.querySelectorAll(selectors)) {
+    const style = getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+
+    // Check opacity
+    let opacity = parseFloat(style.opacity);
+    let parent = el.parentElement;
+    for (let d = 0; d < 3 && parent; d++) {
+      opacity *= parseFloat(getComputedStyle(parent).opacity);
+      parent = parent.parentElement;
+    }
+    if (opacity < 0.1) continue;
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 5 || rect.height < 5) continue;
+
+    const text = (el.textContent || '').trim();
+    if (text.length < 2) continue;
+
+    // Skip elements fully off-screen
+    if (rect.right < 0 || rect.left > viewportW || rect.bottom < 0 || rect.top > viewportH) continue;
+
+    // Skip DevControls
+    if (rect.top > viewportH - 60 && rect.height < 50) continue;
+
+    textEls.push({
+      tag: el.tagName.toLowerCase(),
+      text: text.slice(0, 60),
+      rect: {
+        left: Math.round(rect.left), top: Math.round(rect.top),
+        right: Math.round(rect.right), bottom: Math.round(rect.bottom),
+        width: Math.round(rect.width), height: Math.round(rect.height),
+      },
+      el,
+    });
+  }
+
+  // Check for overlapping and crowded pairs
+  const CROWD_GAP_PX = 8; // text elements closer than this are "crowded"
+
+  for (let i = 0; i < textEls.length; i++) {
+    for (let j = i + 1; j < textEls.length; j++) {
+      const a = textEls[i].rect;
+      const b = textEls[j].rect;
+
+      // Skip if one is a child of the other (DOM nesting, not a real overlap)
+      if (textEls[i].el.contains(textEls[j].el) || textEls[j].el.contains(textEls[i].el)) continue;
+
+      // Check intersection
+      const overlapLeft = Math.max(a.left, b.left);
+      const overlapTop = Math.max(a.top, b.top);
+      const overlapRight = Math.min(a.right, b.right);
+      const overlapBottom = Math.min(a.bottom, b.bottom);
+
+      if (overlapLeft < overlapRight && overlapTop < overlapBottom) {
+        const overlapArea = (overlapRight - overlapLeft) * (overlapBottom - overlapTop);
+        const smallerArea = Math.min(a.width * a.height, b.width * b.height);
+        const overlapPct = smallerArea > 0 ? Math.round((overlapArea / smallerArea) * 100) : 0;
+
+        // Only flag if overlap is significant (> 15% of smaller element)
+        if (overlapPct > 15) {
+          results.overlaps.push({
+            textA: textEls[i].text,
+            textB: textEls[j].text,
+            overlapPct,
+            rectA: a,
+            rectB: b,
+          });
+        }
+      } else {
+        // No intersection — check if they're too close (crowded)
+        const gapX = Math.max(0, overlapLeft - overlapRight); // will be 0 if they share X range
+        const gapY = Math.max(0, overlapTop - overlapBottom);
+        // Compute the minimum gap between the two rects
+        const hGap = Math.max(0, Math.max(a.left, b.left) - Math.min(a.right, b.right));
+        const vGap = Math.max(0, Math.max(a.top, b.top) - Math.min(a.bottom, b.bottom));
+        const minGap = Math.max(hGap, vGap) === 0 ? 0 : Math.min(
+          hGap > 0 ? hGap : Infinity,
+          vGap > 0 ? vGap : Infinity
+        );
+
+        if (minGap > 0 && minGap < CROWD_GAP_PX) {
+          results.crowded.push({
+            textA: textEls[i].text,
+            textB: textEls[j].text,
+            gapPx: Math.round(minGap),
+            rectA: a,
+            rectB: b,
+          });
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
 // ─── Scene Counter ──────────────────────────────────────────────────────
 
 async function getTotalScenes(page) {
@@ -333,10 +443,15 @@ async function runVisualQA() {
       const screenshotFile = `scene-${String(scene).padStart(2, '0')}.png`;
       await page.screenshot({ path: join(OUTPUT_DIR, screenshotFile), type: 'png' });
 
-      // Analyze
+      // Analyze positioning
       const analysis = await page.evaluate(analyzeScene, {
         viewportW: VIEWPORT.width, viewportH: VIEWPORT.height,
         nearMissPx: NEAR_MISS_PX, farOffPx: FAR_OFF_PX,
+      });
+
+      // Analyze text overlap
+      const textOverlap = await page.evaluate(analyzeTextOverlap, {
+        viewportW: VIEWPORT.width, viewportH: VIEWPORT.height,
       });
 
       // ── Determine Status ──
@@ -405,6 +520,28 @@ async function runVisualQA() {
       }
       const farOffCount = analysis.farOffElements.length;
 
+      // FAIL: text overlapping text
+      if (textOverlap.overlaps.length > 0) {
+        status = 'FAIL';
+        for (const ov of textOverlap.overlaps) {
+          issues.push({
+            severity: 'FAIL',
+            msg: `TEXT OVERLAP (${ov.overlapPct}%): "${ov.textA}" overlaps "${ov.textB}" at (${ov.rectA.left},${ov.rectA.top}) vs (${ov.rectB.left},${ov.rectB.top})`,
+          });
+        }
+      }
+
+      // WARN: text elements too close together (crowded)
+      if (textOverlap.crowded.length > 0) {
+        if (status === 'PASS') status = 'WARN';
+        for (const cr of textOverlap.crowded) {
+          issues.push({
+            severity: 'WARN',
+            msg: `TEXT CROWDED (${cr.gapPx}px gap): "${cr.textA}" near "${cr.textB}" at (${cr.rectA.left},${cr.rectA.top}) vs (${cr.rectB.left},${cr.rectB.top})`,
+          });
+        }
+      }
+
       // ── Log ──
       const icon = { PASS: '✓', WARN: '⚠', FAIL: '✗' }[status];
       const color = { PASS: '\x1b[32m', WARN: '\x1b[33m', FAIL: '\x1b[31m' }[status];
@@ -427,6 +564,7 @@ async function runVisualQA() {
           nearMiss: analysis.nearMissElements.length,
           clipped: analysis.clippedElements.length,
           farOff: farOffCount,
+          textOverlaps: textOverlap.overlaps.length,
           coverage: analysis.contentCoverage,
         },
       });

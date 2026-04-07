@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# auto-episode.sh v3 — Streamlined multi-agent episode generation pipeline
+# auto-episode.sh v4 — Streamlined multi-agent episode generation pipeline
 #
 # Creates a complete Bitcoin explainer episode from topic to finished code.
 # Uses parallel agents, specialized personas, and iterative quality loops.
@@ -13,16 +13,13 @@
 #
 # Pipeline flow (default):
 #   1. Research (3 parallel: technical + visual + angle) → Merge
-#   2. Director Research Review
-#   3. Creative Vision
-#   4. Storyboard
-#   5. Director Review + Motion Script (merged, one call)
-#   6. Build (components + VideoTemplate in one pass)
+#   2. Creative Spec (direction + visual design + storyboard + motion script)
+#   3. Build (components + VideoTemplate in one pass)
 #   ★  CHECKPOINT — opens browser, you watch episode, approve/redirect
-#   7. Visual QA + Structural Hard Gates
-#   8. Critique (2-3 parallel critics) → Fix → Rebuild (1 iteration default)
-#   9. Transcript (optional, --with-transcript)
-#   10. Lessons learned (async, skippable)
+#   4. Visual QA + Structural Hard Gates
+#   5. Critique (2-3 parallel critics) → Fix → Rebuild (1 iteration default)
+#   6. Transcript (optional, --with-transcript)
+#   7. Lessons learned (async, skippable)
 #
 # Development loops:
 #   --draft         Run full pipeline but stop after build checkpoint.
@@ -30,8 +27,7 @@
 #   --rebuild       Skip planning, re-run build only using existing artifacts.
 #                   For testing toolkit/CLAUDE.md changes on an existing episode.
 #   --from=<phase>  Resume from a specific phase (deletes downstream markers).
-#                   Valid phases: research, director-research, creative-vision,
-#                   storyboard, director-storyboard, build-components, visual-qa, critique
+#                   Valid phases: research, creative-spec, build-components, visual-qa, critique
 #
 # Presets:
 #   --fast          1 critique iteration, 2 critics, skip lessons
@@ -128,7 +124,7 @@ case "$NUM_CRITICS" in
 esac
 
 # Validate --from phase name
-VALID_PHASES="research director-research creative-vision storyboard director-storyboard build-components visual-qa critique"
+VALID_PHASES="research creative-spec build-components visual-qa critique"
 if [ -n "$FROM_PHASE" ]; then
   phase_valid=false
   for p in $VALID_PHASES; do
@@ -179,7 +175,7 @@ AUDIO_PATH="client/public/audio/ep${EP_NUM}-${SLUG}"
 LOG_FILE="$WORK_DIR/pipeline.log"
 
 # Session files — separate tracks to avoid context bloat
-CREATIVE_SESSION="$WORK_DIR/session_creative"   # creative vision + storyboard
+CREATIVE_SPEC_SESSION="$WORK_DIR/session_creative_spec"  # combined creative spec
 BUILD_SESSION="$WORK_DIR/session_build"          # build components + template
 QA_SESSION="$WORK_DIR/session_qa"               # visual QA + structural fix
 # Rebuild sessions are per-iteration: session_rebuild_iter1, session_rebuild_iter2, etc.
@@ -195,10 +191,7 @@ RESEARCH_TOOLS="Read,Write,Glob,Grep,Agent,WebFetch,WebSearch"
 # Effort: "low" | "medium" | "high" | "" (inherit default)
 EFFORT_RESEARCH="low"
 EFFORT_RESEARCH_MERGE="low"
-EFFORT_DIRECTOR="medium"
-EFFORT_CREATIVE="medium"
-EFFORT_STORYBOARD="medium"
-EFFORT_DIRECTOR_STORYBOARD="medium"
+EFFORT_CREATIVE_SPEC="high"
 EFFORT_BUILD=""              # keep strongest for build (default)
 EFFORT_VISUAL_QA="low"
 EFFORT_CRITIQUE="medium"
@@ -207,7 +200,7 @@ EFFORT_FIX=""                # keep strongest for fix (default)
 EFFORT_LESSONS="low"
 
 MODEL_RESEARCH=""
-MODEL_DIRECTOR=""
+MODEL_CREATIVE_SPEC=""
 MODEL_BUILD=""
 MODEL_CRITIQUE=""
 MODEL_LESSONS=""
@@ -217,7 +210,6 @@ MODEL_LESSONS=""
 CTX_RESEARCH="IMPORTANT: Read CLAUDE-research.md for your role-specific guidelines. You do NOT need CLAUDE-build.md or CLAUDE-critic.md."
 CTX_BUILD="IMPORTANT: Read CLAUDE-build.md for animation toolkit and implementation patterns. This is your primary reference."
 CTX_CRITIC="IMPORTANT: Read CLAUDE-critic.md for quality bar, sameness checklist, and episode registry. Focus on output quality, not implementation details."
-CTX_DIRECTOR="You are a director/planner. Read CLAUDE.md for project identity and rules. You do NOT need the build or critic guides."
 
 mkdir -p "$WORK_DIR"
 
@@ -445,7 +437,7 @@ run_phase() {
     local result_line=$(grep '"type":"result"' "$stream_output" 2>/dev/null | tail -1)
     if [ -n "$result_line" ]; then
       echo "$result_line" | jq -r '.session_id // empty' > "$session_file" 2>/dev/null || true
-      echo "$result_line" | jq -r '.result // empty' > "$WORK_DIR/${phase_name}.md" 2>/dev/null || true
+      echo "$result_line" | jq -r '.result // empty' > "$WORK_DIR/${phase_name}_result.md" 2>/dev/null || true
       local cost=$(echo "$result_line" | jq -r '.total_cost_usd // 0' 2>/dev/null || echo "?")
     else
       local cost="?"
@@ -508,7 +500,7 @@ run_phase() {
 
     # Extract session ID and cost from the JSON output
     jq -r '.session_id // empty' "$raw_output" > "$session_file" 2>/dev/null || true
-    jq -r '.result // empty' "$raw_output" > "$WORK_DIR/${phase_name}.md" 2>/dev/null || true
+    jq -r '.result // empty' "$raw_output" > "$WORK_DIR/${phase_name}_result.md" 2>/dev/null || true
     local cost=$(jq -r '.total_cost_usd // 0' "$raw_output" 2>/dev/null || echo "?")
 
     # Clean up raw JSON (can be huge)
@@ -689,7 +681,7 @@ if [ "$REBUILD_MODE" = "true" ]; then
 
   # Check that essential artifacts exist
   MISSING_ARTIFACTS=""
-  for artifact in storyboard.md creative-brief.md; do
+  for artifact in creative-spec.md; do
     if [ ! -f "$WORK_DIR/$artifact" ]; then
       MISSING_ARTIFACTS="${MISSING_ARTIFACTS} $artifact"
     fi
@@ -703,7 +695,7 @@ if [ "$REBUILD_MODE" = "true" ]; then
 
   # Mark all planning phases as done so they're skipped
   for phase in research-technical research-visual research-angle research research-merge \
-               director-research creative-vision storyboard director-storyboard; do
+               creative-spec; do
     touch "$WORK_DIR/.done_${phase}"
   done
 
@@ -719,7 +711,7 @@ if [ -n "$FROM_PHASE" ]; then
 
   # Ordered list of all phases
   ALL_PHASES="research-technical research-visual research-angle research research-merge \
-    director-research creative-vision storyboard director-storyboard \
+    creative-spec \
     build-components visual-qa structural-fix \
     critique-visual-iter1 critique-tech-iter1 critique-audience-iter1 \
     critique-merge-iter1 fix-plan-iter1 rebuild-iter1 \
@@ -732,10 +724,7 @@ if [ -n "$FROM_PHASE" ]; then
   # Map --from value to the first phase to delete
   case "$FROM_PHASE" in
     research)          delete_from="research-technical" ;;
-    director-research) delete_from="director-research" ;;
-    creative-vision)   delete_from="creative-vision" ;;
-    storyboard)        delete_from="storyboard" ;;
-    director-storyboard) delete_from="director-storyboard" ;;
+    creative-spec)     delete_from="creative-spec" ;;
     build-components)  delete_from="build-components" ;;
     visual-qa)         delete_from="visual-qa" ;;
     critique)          delete_from="critique-visual-iter1" ;;
@@ -954,33 +943,50 @@ PROMPT_END
 touch "$WORK_DIR/.done_research"
 fi
 
-# ═════════════════════════════════════════════════════════════════════════════
-# PHASE 2: DIRECTOR — RESEARCH REVIEW  [Planner — can't edit code]
-# ═════════════════════════════════════════════════════════════════════════════
 
-divider "PLANNER" "DIRECTOR — RESEARCH REVIEW"
+# ═════════════════════════════════════════════════════════════════════════════
+# PHASE 2: CREATIVE SPEC  [Planner — direction + visual design + storyboard + motion script]
+# ═════════════════════════════════════════════════════════════════════════════
+# Collapsed from old Phases 2-5 (director-research, creative-vision, storyboard,
+# director-storyboard + motion-script). One agent, one pass, one coherent document.
+# Uses "stop and think" checkpoints to preserve deliberation quality.
 
-if phase_done "director-research"; then
-  log "⏭ director-research already done — skipping"
+divider "PLANNER" "CREATIVE SPEC"
+
+if phase_done "creative-spec"; then
+  log "⏭ creative-spec already done — skipping"
 else
-run_phase "director-research" "$(cat <<PROMPT_END
-${CTX_DIRECTOR}
+run_phase "creative-spec" "$(cat <<PROMPT_END
+You are a CREATIVE DIRECTOR and VISUAL ARCHITECT for an animated Bitcoin explainer series.
+You don't build code — you THINK, DESIGN, and SPEC. You cannot edit code.
+Your job is to produce a complete creative specification that a developer can build from.
 
-You are a CREATIVE DIRECTOR for an animated Bitcoin explainer series. You don't build — you THINK and STEER. You cannot edit code. Your job is to review research and write creative direction.
+Episode ${EP_NUM}: ${TOPIC}
 
-A researcher just delivered their findings on "${TOPIC}".
+═══════════════════════════════════════════════
+STEP 1: READ ALL INPUTS
+═══════════════════════════════════════════════
 
-STEP 1: Read the research.
-Read this file: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
+Read these files before proceeding:
+- Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
+- CLAUDE.md — especially the Episode Registry at the bottom
+- CLAUDE-build.md — especially Animation Toolkit and "Making Episodes That Don't Look Alike"
+- DO NOT read old episode VideoTemplate.tsx files. They use outdated patterns.
 
-STEP 2: Read CLAUDE.md — especially the "Episode Registry" section at the bottom.
-DO NOT read old episode VideoTemplate.tsx files. They use outdated patterns you'll unconsciously copy.
-The registry tells you what's been done visually so you can avoid repeating it.
+═══════════════════════════════════════════════
+STEP 2: CREATIVE DIRECTION — decide the narrative foundation
+═══════════════════════════════════════════════
 
-STEP 3: Write your creative direction.
+Before designing anything visual, DECIDE:
 
-Think about:
-1. What's the BEST teaching approach for this topic? (analogy-first, problem→failure→fix, definition→deep-dive, specific→general, wrong→less-wrong→right, dialogue-driven)
+LEARNING PATH (mandatory — write this FIRST):
+a) PREREQUISITES — what does the viewer already know? (e.g., "knows what a hash is, knows blocks contain transactions"). Be specific. This is your starting line.
+b) WRONG MENTAL MODEL — what do most viewers incorrectly assume about this topic? What's the common misconception you need to displace?
+c) LEARNING STEPS — the path from what they know to what they'll learn, as 3-5 concrete steps. Each step builds on the previous. Example: "1. You know blocks have transactions → 2. But how do you prove YOUR transaction is in a block? → 3. You'd need to download the whole block → 4. Merkle trees let you prove it with just a small path → 5. Here's how that path is computed."
+d) NO JARGON BEFORE GROUNDING — list any technical terms this episode uses. For each, note the scene where it's first visually grounded. A term like "Merkle proof" or "nonce" CANNOT appear in explanatory scenes until the viewer has first seen the familiar thing it relates to. (Title/topic cards are exempt — they can name the concept.)
+
+CREATIVE DECISIONS:
+1. What's the BEST teaching approach for this topic? (analogy-first, problem>failure>fix, definition>deep-dive, specific>general, wrong>less-wrong>right, dialogue-driven)
 2. What's the surprising angle — the one thing that makes a viewer say "wait, really?!"
 3. What should the emotional arc be? Where does the aha moment land?
 4. What's the ONE key takeaway viewers should remember?
@@ -989,82 +995,27 @@ Think about:
 7. Per the Episode Registry — what must THIS episode do differently? What animation library should drive the core visual? (GSAP? SVG morph? Canvas 2D?)
 8. Should this episode use CHARACTERS (Alice & Bob stick figures)? Characters work best for dialogue-driven teaching — Alice explains, Bob asks questions. They add personality and make abstract topics feel like a conversation. Not every episode needs them. Decide YES or NO and explain why.
 
-Save your creative direction to .auto-episode/ep${EP_NUM}-${SLUG}/director-research.md
+Be opinionated. Be decisive. Don't hedge.
 
-Format:
-## Teaching Approach
-[which approach and WHY — be decisive, not "could be X or Y"]
+Write your answers into Part 1 of the output document (format below).
 
-## The Hook
-[what grabs attention in the first 3 seconds]
+═══════════════════════════════════════════════
+STEP 3: VISUAL DESIGN — design the visual concept
+═══════════════════════════════════════════════
 
-## Core Story Arc
-[scene-level narrative flow: where do we start, what's the journey, where do we land]
-
-## The Aha Moment
-[what it is and roughly where it should land in the episode]
-
-## What to Skip
-[interesting details that would hurt pacing — kill your darlings]
-
-## Visual Differentiation
-[what existing episodes have done + what THIS episode MUST do differently]
-
-## Characters
-[YES or NO — should Alice & Bob stick figures appear? If YES: what roles do they play? (e.g., Alice=teacher, Bob=confused learner). Which scenes are dialogue-driven vs pure visual? Characters add personality but shouldn't be forced into every episode.]
-
-## Key Real Values to Use
-[specific numbers, hashes, addresses, tx data to make it concrete]
-
-## Risks
-[what could go wrong with this episode — what's hardest to get right]
-
-Be opinionated. Be decisive. Don't hedge. You're the director — DIRECT.
-PROMPT_END
-)" --new-session --session-file "$WORK_DIR/session_director1" --tools "$PLANNER_TOOLS" --effort "$EFFORT_DIRECTOR" --model "$MODEL_DIRECTOR"
-fi
-
-# ═════════════════════════════════════════════════════════════════════════════
-# PHASE 3: CREATIVE VISION  [Executor — reads handoff artifacts]
-# ═════════════════════════════════════════════════════════════════════════════
-
-divider "EXECUTOR" "CREATIVE VISION"
-
-if phase_done "creative-vision"; then
-  log "⏭ creative-vision already done — skipping"
-else
-
-# Inline the director's guidance so it's front-and-center
-DIRECTOR_RESEARCH=$(read_artifact "director-research.md")
-
-run_phase "creative-vision" "$(cat <<PROMPT_END
-Now design the episode's visual identity for episode ${EP_NUM}: ${TOPIC}.
-
-HANDOFF FROM DIRECTOR — read this carefully, the director has already decided the teaching approach and story arc:
----BEGIN DIRECTOR GUIDANCE---
-${DIRECTOR_RESEARCH}
----END DIRECTOR GUIDANCE---
-
-Your job is to design the VISUAL CONCEPT that serves the director's story arc. Do not reinvent the narrative — serve it.
-
-Also read:
-- Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
-- CLAUDE-build.md — especially Animation Toolkit and "Making Episodes That Don't Look Alike"
-- CLAUDE.md — especially the Episode Registry
-- DO NOT read old episode VideoTemplate.tsx files — they use outdated patterns
+Now, serving your narrative decisions from Step 2, design the visual concept.
 
 RULES:
 - Do NOT repeat any visual approach from the Episode Registry in CLAUDE.md
 - Do NOT default to DiagramBox, FlowRow, or other shared library components for the core visual
-- The core visual MUST NOT use CE (CanvasElement). Use GSAP timeline, SVG path morphing, CSS keyframes, Canvas 2D, or morph()
-- Use VIEWPORT-FIRST layout — all content fits within 1920×1080 (100vw × 100vh). No oversized canvases, no camera zoom/pan. Animate within the visible frame. Use morph() for persistent visuals that transform between scenes within the viewport.
+- The core visual MUST NOT use CE (CanvasElement). Use GSAP timeline, SVG path morphing, CSS @keyframes, Canvas 2D, or morph()
+- Use VIEWPORT-FIRST layout — all content fits within 1920x1080 (100vw x 100vh). No oversized canvases, no camera zoom/pan. Animate within the visible frame. Use morph() for persistent visuals that transform between scenes within the viewport.
 - Define episode-specific EP_COLORS and EP_SPRINGS in constants.ts
 - ${PALETTE_INSTRUCTION}
-- The director already decided the teaching approach — your job is the visual execution
 
 TECHNIQUE SELECTION — pick the RIGHT tool for the concept:
 - **Canvas 2D** — best when the concept has a PHYSICAL or MATHEMATICAL model underneath: particles, heatmaps, fluid/flow, data grids, collision physics, procedural generation. Canvas gives you a render loop (requestAnimationFrame) where you control every pixel every frame. This produces our highest-quality visuals (see EP8 sponge tank, EP9 heatmap). Use Canvas 2D when the visual needs continuous simulation, not just state transitions.
-- **GSAP timeline** — best for choreographed multi-element sequences with precise timing: step-by-step processes, cascading reveals, coordinated multi-part animations where element A finishes → element B starts. GSAP excels at orchestration.
+- **GSAP timeline** — best for choreographed multi-element sequences with precise timing: step-by-step processes, cascading reveals, coordinated multi-part animations where element A finishes > element B starts. GSAP excels at orchestration.
 - **SVG path morphing** — best for shape transformations: one shape becoming another, line-drawing reveals, organic/curved visuals, circuit diagrams, tree growth.
 - **CSS @keyframes** — best for ambient loops that run independently: pulsing glows, rotating elements, gradient shifts, floating particles. Layer these WITH other techniques for depth.
 - **Framer Motion morph()** — best for declarative state transitions: element moves from position A to B across scenes. Good for layout changes, not for continuous simulation.
@@ -1075,65 +1026,66 @@ THE QUALITY BAR — what makes a signature visual memorable:
 2. It has CONTINUOUS LIFE — something is always moving, even between scene transitions. Brownian motion, ambient shimmer, pulsing glow. The scene feels alive, not frozen between state changes.
 3. It has MULTIPLE MODES/STATES — the same visual behaves differently across scenes. A sponge tank that absorbs, permutes, squeezes, bounces attacks. A heatmap that fills linearly, then quadratically, then gets capped. Mode changes create drama.
 4. It has LAYERED EFFECTS — not one flat animation but depth: glow underneath + core element + highlight on top. Gradients, shadows, bloom, caustics.
-5. It TEACHES WITHOUT VOICEOVER — a viewer watching on mute should understand the core concept from the animation alone. If the visual is just decoration while text does the teaching, the concept is wrong. The animation IS the explanation.
+5. It TEACHES WITHOUT VOICEOVER — a viewer watching on mute should understand the core concept from visuals + on-screen text together. Neither alone carries everything. The diagram makes the mechanism click; the text explains what the viewer is seeing. If the visual is pure decoration while text does all the teaching, or vice versa, it fails.
 Reference: EP8 SpongeCanvas (497 lines, Canvas 2D particle physics, 5 modes) and EP9 HeatmapCanvas (321 lines, Canvas 2D grid, 3 fill modes with heat color ramp) set the quality bar.
 
-For your chosen concept, detail:
-a) THE SIGNATURE VISUAL — the ONE custom animation that makes this episode instantly recognizable. Describe: what rendering technique? What's the underlying model? What modes/states does it have across scenes? What makes it feel alive between transitions? How does a viewer understand the concept just by watching the animation on mute?
+Design:
+a) THE SIGNATURE VISUAL — the ONE custom animation that makes this episode instantly recognizable. Describe: what rendering technique? What's the underlying model? What modes/states does it have across scenes? What makes it feel alive between transitions? How do visuals + on-screen text together make the concept understandable on mute?
 b) COLOR PALETTE — define EP_COLORS following the color mode above
 c) LAYOUT PATTERN — NOT centered-stack-with-heading — what serves THIS content?
 d) ANIMATION PERSONALITY — spring configs, timing, motion style that matches the topic
 e) CUSTOM COMPONENTS NEEDED — what must be built from scratch for this episode. Each act should have its own visual centerpiece.
-f) CHARACTER PLAN — if the director said YES to characters: How are Alice & Bob used? Which scenes have dialogue? What's their positioning (e.g., Alice left 25%, Bob right 75%)? What emotions/gestures drive the key moments? If NO characters: skip this. Read the "Characters" section in CLAUDE.md for the full API (emotions, gestures, lookAt, speech bubbles).
+f) CHARACTER PLAN — if YES to characters: How are Alice & Bob used? Which scenes have dialogue? What's their positioning? What emotions/gestures drive the key moments? If NO characters: skip this.
 
-Also brainstorm 2 alternative concepts (brief, 1 paragraph each) so the director could course-correct if needed. But commit to your best one.
+Also brainstorm 2 alternative concepts (brief, 1 paragraph each) in case the main concept fails in implementation.
 
 Rate your chosen concept:
 - Originality vs. past episodes (1-10)
 - How naturally it fits the topic (1-10)
 - Visual wow factor (1-10)
 - Feasibility in React + Framer Motion (1-10)
-- Underlying model depth (1-10): does the core visual have a real model (physics, math, data) driving it, or is it just styled divs with transitions?
-- Teaches without voiceover (1-10): could a viewer on mute understand the concept from the animation alone?
+- Underlying model depth (1-10)
+- Teaches without voiceover (1-10)
 
-Save the full creative brief to .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
-PROMPT_END
-)" --new-session --session-file "$CREATIVE_SESSION" --effort "$EFFORT_CREATIVE"
-fi
+Write into Part 2 of the output document.
 
-# ═════════════════════════════════════════════════════════════════════════════
-# PHASE 4: STORYBOARD  [Executor — resumes creative session]
-# ═════════════════════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════
+STEP 4: SELF-REVIEW — check your own direction before storyboarding
+═══════════════════════════════════════════════
 
-divider "EXECUTOR" "STORYBOARD"
+STOP. Before storyboarding, critically review what you decided in Steps 2-3:
+- Does the visual concept SERVE the teaching approach, or did it drift into decoration?
+- Is the signature visual original vs. every episode in the Registry?
+- Will this work at 1920x1080 with morph() and GSAP?
+- Did you choose characters for the right reason, or out of habit?
+- Would a viewer watching on mute understand the core concept from visuals + on-screen text together?
 
-if phase_done "storyboard"; then
-  log "⏭ storyboard already done — skipping"
-else
-run_phase "storyboard" "$(cat <<PROMPT_END
-Now turn the creative vision into a concrete scene-by-scene storyboard for episode ${EP_NUM}: ${TOPIC}.
+If anything is misaligned, REVISE Steps 2-3 BEFORE proceeding.
+Note any revisions in a "Self-Review" subsection of Part 2.
 
-Read these artifacts if you need to refresh context:
-- Director guidance: .auto-episode/ep${EP_NUM}-${SLUG}/director-research.md
-- Creative brief: .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
-- Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
+═══════════════════════════════════════════════
+STEP 5: SCENE-BY-SCENE STORYBOARD
+═══════════════════════════════════════════════
 
-Follow CLAUDE.md rules strictly, especially:
+Turn your creative vision into a concrete scene-by-scene storyboard.
+
+Follow CLAUDE.md rules strictly:
 - ONE idea per scene
 - ONE sentence per scene heading (max ~15 words)
-- Text CAPTIONS the animation — the diagram/animation teaches, not the text
+- Visual + on-screen text TOGETHER are the teaching channel. Neither alone carries everything. The diagram makes the mechanism click; the text explains what the viewer is seeing. A muted viewer should understand the concept from visuals + text combined.
 - Progressive reveal in every scene — staggered delays, never dump everything
-- Scene 1 = title, Scene 2 = start from familiar ground (not jargon)
+- Scene 1 = title, Scene 2 = start from the PREREQUISITES you defined (what the viewer already knows)
 - Last scene = CTA
-- Use real worked examples with actual values, not placeholders
+- Explanatory sequences and mechanisms must be grounded with concrete labels and real values where relevant. Don't overload simple bridge scenes, but never leave a mechanism purely abstract.
+- NO JARGON BEFORE GROUNDING: a technical term cannot appear in explanatory scenes until the viewer has first seen the familiar thing it relates to. Title/topic cards are exempt.
 
 For EACH scene, write:
 1. SCENE NUMBER and NAME
 2. DURATION (simple: 6-7s, diagram: 8-10s, complex: 10-12s)
 3. ON-SCREEN CAPTION (short heading — max ~15 words, orients the viewer)
-4. TEXT INSIDE VISUAL (labels, values, formulas, field names INSIDE the diagram itself — no word limit. Think 3Blue1Brown: equations next to geometry, labels pointing at things, real values inside blocks, "2016 × 10 min = 14 Days" next to the block chain. This is where the teaching happens. The visual should be self-explanatory with its embedded text.)
-5. TEACHING ANCHORS — list the exact text elements (labels, values, captions) that appear on screen so a MUTED viewer can tell what they're looking at and what changed. Every explanatory scene MUST have at least one. Title cards and mood beats are exempt.
-6. VISUAL DESCRIPTION (what the viewer sees — the diagram/animation with its labels)
+4. TEXT INSIDE VISUAL (labels, values, formulas, field names INSIDE the diagram — no word limit. These explain what the viewer is seeing. Think 3Blue1Brown: equations next to geometry, labels pointing at things, real values inside blocks. The text must make the visual self-explanatory.)
+5. TEACHING ANCHORS — the exact on-screen text (labels, values, captions) that a MUTED viewer needs to understand what they're looking at and what changed. Visual + text together must carry the lesson. Every explanatory scene MUST have at least one. Title cards and mood beats are exempt.
+6. VISUAL DESCRIPTION (what the viewer sees — the diagram/animation that makes the concept click visually)
 7. ANIMATION DETAILS (what enters, exits, morphs, specific delays)
 8. CHARACTERS (if this scene uses Alice/Bob — otherwise omit):
    alice: emotion=<emotion>, gesture=<gesture>, lookAt=<dir>, says="<speech>"
@@ -1141,92 +1093,66 @@ For EACH scene, write:
    Available emotions: neutral, happy, excited, curious, confused, thinking, surprised, worried, annoyed, explaining, laughing
    Available gestures: none, wave, point, shrug, present
    Available lookAt: center, left, right, up, down
-9. WHY THIS SCENE (what concept does it teach? how does it connect to the next?)
+9. LEARNING STEP — what does the viewer know at this point? What ONE new thing does this scene add? How does it connect to the next? (Not just "teaches X" — state the progression: "viewer now understands A, this scene shows how A leads to B")
 
 Mark the HIGHLIGHT SCENE (aha moment) with [HIGHLIGHT].
 Mark scenes using the SIGNATURE VISUAL with [SIGNATURE].
 
 Use AS MANY SCENES as the topic needs. 15-25 scenes is typical.
 
-CRITICAL — VIEWPORT-FIRST SCENE COMPOSITION:
-After the scene list, include a "Scene Layout" section. You MUST:
-1. **All content fits within the 1920×1080 viewport** (100vw × 100vh). No oversized canvases.
-2. For EACH scene, describe the VIEWPORT COMPOSITION — what is visible on the 1920×1080 screen and where elements are positioned.
-3. Use LAYOUT VARIETY across scenes — split-screen, full-bleed, asymmetric, centered reveals. Don't use the same layout for every scene.
-4. Prefer PERSISTENT VISUALS with morph() when content spans multiple scenes — elements stay mounted and transform position/size/style within the viewport.
-5. Use sceneRange() or CE enter/exit to swap content between scenes when appropriate — both persistent (morph) and swapping patterns are valid.
-6. Every element the viewer needs must be VISIBLE on screen. No off-screen content.
+VIEWPORT-FIRST SCENE COMPOSITION:
+After the scene list, include a "Scene Layout" section:
+1. All content fits within 1920x1080 viewport. No oversized canvases.
+2. For EACH scene, describe the VIEWPORT COMPOSITION — what is visible and where.
+3. Use LAYOUT VARIETY across scenes — split-screen, full-bleed, asymmetric, centered.
+4. Prefer PERSISTENT VISUALS with morph() when content spans multiple scenes.
+5. Use sceneRange() or CE enter/exit to swap content when appropriate.
+6. Every element must be VISIBLE on screen. No off-screen content.
 
-Save the storyboard to .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
-PROMPT_END
-)" --session-file "$CREATIVE_SESSION" --effort "$EFFORT_STORYBOARD"
-fi
-
-# ═════════════════════════════════════════════════════════════════════════════
-# PHASE 5: DIRECTOR STORYBOARD REVIEW + MOTION SCRIPT  [Planner — one pass]
-# ═════════════════════════════════════════════════════════════════════════════
-# Merged: the director reviews the storyboard AND writes the timestamped
-# motion script in a single Planner call. Both outputs are saved separately.
-
-divider "PLANNER" "DIRECTOR REVIEW + MOTION SCRIPT"
-
-if phase_done "director-storyboard"; then
-  log "⏭ director-storyboard + motion-script already done — skipping"
-else
-run_phase "director-storyboard" "$(cat <<PROMPT_END
-You are a CREATIVE DIRECTOR reviewing a storyboard and writing a timestamped motion script for production. You cannot edit code. This is the last review before code gets written.
-
-Episode ${EP_NUM}: ${TOPIC}
-
-Read ALL of these files:
-- Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
-- Your previous direction: .auto-episode/ep${EP_NUM}-${SLUG}/director-research.md
-- Creative brief: .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
-- Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
-- CLAUDE-build.md — especially Animation Toolkit and GSAP Utilities
-- CLAUDE.md — for Timing Guidelines
+Write into Part 3 of the output document.
 
 ═══════════════════════════════════════════════
-PART 1: STORYBOARD REVIEW
+STEP 6: STORYBOARD SELF-REVIEW
 ═══════════════════════════════════════════════
 
-CHECK:
-1. Does the storyboard follow YOUR direction from the research review? Or did it drift?
-2. Is the teaching approach consistent across research → creative → storyboard?
-3. Is the aha moment clearly placed and properly set up by preceding scenes?
-4. Is the text short enough? (ONE sentence per heading, max ~15 words — check EVERY scene)
-5. Does every scene have an animated visual, or are some text-only slides?
-6. Is there progressive reveal, or do scenes dump content at once?
-7. Pacing: too fast? Too slow? Any scenes that should be cut or merged?
-8. Is the signature visual actually custom and original vs. existing episodes?
-9. Does the opening start from familiar ground (not jargon)?
-10. Are real values used (not "the hash of X" but actual hex values)?
-11. **Teaching anchors:** Does every explanatory scene have visible text (labels, values, captions) so a MUTED viewer can tell what they're looking at and what changed? Flag any scene with important animation but no text context.
-12. If characters are used: Do Alice & Bob have distinct roles? Varied emotions? Short speech bubbles (max ~12 words)? Do they look at each other during dialogue? Non-dialogue scenes too?
+STOP. Review your storyboard as a strict creative director:
 
-Save your review to .auto-episode/ep${EP_NUM}-${SLUG}/director-storyboard.md with sections:
-## Verdict (GO / NEEDS CHANGES)
-## Alignment Check
-## Scenes to Strengthen (specific scene numbers)
-## Scenes to Cut or Merge
-## Build Priorities (what to build FIRST)
-## Risk Areas
-## Non-Negotiables
+PEDAGOGY CHECK (most important):
+1. Does scene 2 clearly start from the PREREQUISITES — something the viewer already knows?
+2. Walk through as a BEGINNER: read only the captions + text-inside-visual for each scene. Can you follow the concept without imagining narration? Where would you get lost?
+3. Does each explanatory scene teach exactly ONE new step that builds on the previous?
+4. Does any scene use jargon that hasn't been visually grounded yet? (Title cards exempt)
+5. Could a muted viewer understand the mechanism from visuals + on-screen text together?
+
+QUALITY CHECK:
+6. Does it follow your direction from Step 2? Or did it drift?
+7. Is the aha moment clearly placed and properly set up by preceding scenes?
+8. Is text short enough? (Check EVERY scene — max ~15 words per heading)
+9. Does every scene have an animated visual, or are some text-only slides?
+10. Progressive reveal or info dump?
+11. Pacing: too fast? Too slow? Scenes to cut or merge?
+12. Is the signature visual original?
+13. Real values used where relevant?
+14. If characters: distinct roles? Varied emotions? Short speech bubbles (max ~12 words)?
+
+Write a brief verdict. If the pedagogy check fails on ANY point, GO BACK AND REVISE Part 3 before proceeding. Pedagogy failures are not cosmetic — they mean the episode doesn't teach.
+
+Write into Part 4 of the output document.
 
 ═══════════════════════════════════════════════
-PART 2: TIMESTAMPED MOTION SCRIPT
+STEP 7: TIMESTAMPED MOTION SCRIPT
 ═══════════════════════════════════════════════
 
-Now, incorporating your review feedback above, write a precise TIMESTAMPED motion script — the spec between "storyboard" and "code."
+Write a precise timestamped motion script — the build spec between storyboard and code.
 
 FORMAT — for each scene:
 \`\`\`
 SCENE <N>: <name> (duration: <X>s)
-────────────────────────────────
+---
 0.0s  TRANSITION: [how we enter — wipe, cut, morph, layout change]
-0.0s  [element] — [action] (e.g., "Title text — blurIn from center, scale 0.8→1.0")
+0.0s  [element] — [action] (e.g., "Title text — blurIn from center, scale 0.8>1.0")
 0.4s  [element] — [action with timing] (e.g., "Subtitle — slideRight, 0.3s duration")
-1.2s  [element] — [action] (e.g., "Block diagram — GSAP stagger, children cascade left→right 0.1s apart")
+1.2s  [element] — [action] (e.g., "Block diagram — GSAP stagger, children cascade left>right 0.1s apart")
 3.0s  [element] — [state change] (e.g., "Block #3 — highlight red, pulse glow")
 5.5s  HOLD — viewer absorbs (1.5s breathing room)
 7.0s  EXIT: [how elements leave or transform into next scene]
@@ -1236,28 +1162,65 @@ RULES:
 1. Every element gets a timestamp. No "then" or "after that" — use exact times.
 2. Specify the animation TECHNIQUE for each move: morph(), GSAP tl.from/tl.to, CE enter/exit, CSS @keyframes, spring config.
 3. Layout/composition changes get their own timestamps.
-4. Mark the HIGHLIGHT SCENE's dramatic moment with ★.
+4. Mark the HIGHLIGHT SCENE's dramatic moment with a star.
 5. Include hold/breathing time at the end of each scene (1-2s minimum).
 6. Note which elements PERSIST across scenes (use morph) vs which enter/exit (use CE/GSAP).
 7. For CHARACTER scenes: timestamp each character state change (emotion, gesture, lookAt, says).
-8. **Teaching anchors get timestamps too.** Labels, values, captions, and callouts must have explicit entry times — not just the animation they annotate. A label appearing 0.5s after the element it names gives the viewer time to see the shape, then read what it is.
+8. Teaching anchors get timestamps too. Labels, values, captions must have explicit entry times.
 
 ALSO INCLUDE at the end:
 - ## Persistent Elements
 - ## Animation Library Assignments
-- ## Scene Layouts (per-scene viewport compositions — what's visible and where)
+- ## Scene Layouts (per-scene viewport compositions)
 - ## Character Choreography (if applicable)
 
-Save to .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md
+Write into Part 5 of the output document.
+
+═══════════════════════════════════════════════
+STEP 8: BUILD PRIORITIES SUMMARY
+═══════════════════════════════════════════════
+
+Write a concise build handoff summary:
+## Build Priorities (what to build FIRST — signature visual, then what?)
+## Non-Negotiables (things the builder must not deviate from)
+## Risk Areas (what's hardest to get right)
+## Scenes to Strengthen (if any from your review)
+
+This summary gets inlined directly into the build prompt, so keep it focused and actionable.
+
+═══════════════════════════════════════════════
+OUTPUT: Save TWO files
+═══════════════════════════════════════════════
+
+FILE 1: .auto-episode/ep${EP_NUM}-${SLUG}/creative-spec.md
+Full document with all parts:
+- Part 1: Creative Direction (LEARNING PATH: prerequisites, wrong mental model, learning steps, jargon grounding map; CREATIVE DECISIONS: teaching approach, hook, story arc, aha moment, what to skip, visual differentiation, characters, key real values, risks)
+- Part 2: Visual Design (signature visual, EP_COLORS, EP_SPRINGS, layout, animation personality, custom components, character plan, self-review)
+- Part 3: Storyboard (scene-by-scene with all 9 fields per scene including LEARNING STEP, scene layouts)
+- Part 4: Storyboard Review (pedagogy check + quality check, verdict)
+- Part 5: Motion Script (timestamped per-scene, persistent elements, animation assignments, scene layouts, character choreography)
+
+FILE 2: .auto-episode/ep${EP_NUM}-${SLUG}/creative-spec-summary.md
+Just the build priorities summary from Step 8. Short and actionable.
 
 Be PRECISE. Both documents are the developer's build spec — vague guidance = vague episode.
 PROMPT_END
-)" --new-session --session-file "$WORK_DIR/session_director2" --tools "$PLANNER_TOOLS" --effort "$EFFORT_DIRECTOR_STORYBOARD" --model "$MODEL_DIRECTOR"
+)" --new-session --session-file "$CREATIVE_SPEC_SESSION" --tools "$PLANNER_TOOLS" --effort "$EFFORT_CREATIVE_SPEC" --model "$MODEL_CREATIVE_SPEC"
+fi
 
+# ── Verify creative-spec artifacts exist before building ────────────────────
+if [ ! -f "$WORK_DIR/creative-spec.md" ]; then
+  log "FATAL: creative-spec.md not found — the creative spec phase did not save its output."
+  log "Re-run with --from=creative-spec"
+  exit 1
+fi
+if [ ! -f "$WORK_DIR/creative-spec-summary.md" ]; then
+  log "⚠ creative-spec-summary.md not found — build will proceed without summary handoff."
+  log "  The build agent will read the full creative-spec.md instead."
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
-# PHASE 6: BUILD CUSTOM COMPONENTS  [Executor — reads all handoffs]
+# PHASE 3: BUILD CUSTOM COMPONENTS  [Executor — reads all handoffs]
 # ═════════════════════════════════════════════════════════════════════════════
 
 divider "EXECUTOR" "BUILD CUSTOM COMPONENTS"
@@ -1266,8 +1229,8 @@ if phase_done "build-components"; then
   log "⏭ build-components already done — skipping"
 else
 
-# Inline the director's build guidance + build memory (curated lessons)
-DIRECTOR_STORYBOARD=$(read_artifact "director-storyboard.md")
+# Inline the creative spec summary + build memory (curated lessons)
+CREATIVE_SPEC_SUMMARY=$(read_artifact "creative-spec-summary.md")
 BUILD_MEMORY=""
 if [ -f "$PROJECT_DIR/.auto-episode/build-memory.md" ]; then
   BUILD_MEMORY=$(cat "$PROJECT_DIR/.auto-episode/build-memory.md")
@@ -1278,24 +1241,22 @@ ${CTX_BUILD}
 
 Now build the custom visual components for episode ${EP_NUM}: ${TOPIC}.
 
-HANDOFF FROM DIRECTOR — the director reviewed the storyboard and wrote build priorities:
----BEGIN DIRECTOR BUILD GUIDANCE---
-${DIRECTOR_STORYBOARD}
----END DIRECTOR BUILD GUIDANCE---
+HANDOFF FROM CREATIVE SPEC — build priorities and key decisions:
+---BEGIN BUILD GUIDANCE---
+${CREATIVE_SPEC_SUMMARY}
+---END BUILD GUIDANCE---
 
 ${BUILD_MEMORY:+---BUILD MEMORY (curated lessons from past episodes)---
 ${BUILD_MEMORY}
 ---END BUILD MEMORY---
 }
 Read these artifacts for full context:
-- Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
-- Motion script: .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md (TIMESTAMPED animation spec — follow this for timing)
-- Creative brief: .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
+- Creative spec (FULL document — storyboard, motion script, visual design, everything): .auto-episode/ep${EP_NUM}-${SLUG}/creative-spec.md
 - Research: .auto-episode/ep${EP_NUM}-${SLUG}/research.md
 
-Build the episode from scratch using the storyboard's scene layout section for viewport compositions.
+Build the episode from scratch using the creative spec's scene layout section for viewport compositions.
 
-FOLLOW THE DIRECTOR'S BUILD PRIORITIES. Build the signature visual FIRST, then supporting components.
+FOLLOW THE BUILD PRIORITIES from the creative spec summary. Build the signature visual FIRST, then supporting components.
 
 IMPORTANT:
 - Read CLAUDE-build.md first — especially the Animation Toolkit section and the Characters section
@@ -1314,11 +1275,18 @@ SIGNATURE VISUAL QUALITY FLOOR — the core visual component must have:
 - CONTINUOUS LIFE — ambient motion even between scene changes (Brownian drift, shimmer, pulse). Use requestAnimationFrame for Canvas 2D, or CSS @keyframes for ambient loops
 - MULTIPLE MODES — the visual should behave differently across scenes (e.g., idle → active → climax → resolution), not just appear/disappear
 - LAYERED RENDERING — depth through glow + core + highlight layers, gradients, shadows. Flat single-layer elements look cheap
-- MUST TEACH WITHOUT VOICEOVER — a viewer watching on mute should understand the core concept from the animation alone. If the visual is just decoration while text does the teaching, it fails this bar. The animation IS the explanation.
+- MUTED COMPREHENSION — a viewer watching on mute should understand the core concept from visuals + on-screen text together. The diagram makes the mechanism click; the text explains what the viewer is seeing. Neither alone carries everything. If the visual is just decoration, it fails.
 Reference: EP8's SpongeCanvas.tsx (497 lines, Canvas 2D particle physics, 5 modes) and EP9's HeatmapCanvas.tsx (321 lines, Canvas 2D grid, 3 fill modes with heat color ramp) set the quality bar.
 - Use VIEWPORT-FIRST layout — all content fits within 1920×1080 (100vw × 100vh). No oversized canvases, no Camera zoom/pan.
 - Prefer persistent visuals with morph() when content spans multiple scenes — elements stay mounted and transform within the viewport. Use sceneRange() or CE enter/exit to swap content when appropriate.
 - If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE-build.md for the full props API (emotions, gestures, lookAt, speech bubbles).
+
+TEXT POSITIONING RULES:
+- Teaching text gets RESERVED LAYOUT ZONES — decide where text goes BEFORE placing decorative elements
+- Text must NEVER overlap other text. Labels, captions, and values must each have their own clear space.
+- Visual layers (glows, backgrounds, diagrams) can overlap freely, but text is always readable on top
+- Every scene that teaches a concept must have visible on-screen text explaining what the viewer is seeing — the visual and text together carry the lesson
+- When positioning text elements, check what's already at that vertical/horizontal zone to avoid collision
 
 PHASE A — BUILD CUSTOM COMPONENTS:
 1. Create the episode directory: mkdir -p ${EP_PATH}/
@@ -1491,6 +1459,8 @@ For each FAIL issue in the report:
    - Is content off-screen? → adjust the absolute vw/vh coordinates to bring it within the 1920×1080 viewport
    - Is content clipped at the edge? → reposition or resize to fit within the viewport
    - Is it internal component positioning? (content offset within the component) → adjust the component
+   - Is it TEXT OVERLAP? → two text elements are on top of each other. Move one of them to a different position so both are readable. Give each text element its own reserved space.
+   - Is it TEXT CROWDED? → two text elements are too close together (< 8px gap). Increase spacing between them so both are clearly readable.
 3. **Fix the code**
 4. **Do NOT write a POSITION AUDIT comment** — the automated tool replaces manual math audits
 
@@ -1499,6 +1469,8 @@ For WARN issues (clipping):
 - Minor edge clipping (<20%) is acceptable
 
 For WARN items with far off-screen elements: these indicate content outside the 1920×1080 viewport — reposition within the visible frame.
+
+For WARN items with TEXT CROWDED: increase spacing between the text elements so they're clearly separate and readable.
 
 IMPORTANT: Do NOT compute positioning math manually. Fix by adjusting values, then re-run the visual QA tool to verify:
   node scripts/visual-qa.mjs ep${EP_NUM} ${VQ_OUTPUT_DIR}
@@ -1695,10 +1667,7 @@ Pay extra attention to whether this feedback has been addressed.
 - ${EP_PATH}/constants.ts
 
 Also read for comparison:
-- Creative brief: .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
-- Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
-- Motion script: .auto-episode/ep${EP_NUM}-${SLUG}/motion-script.md
-- Director guidance: .auto-episode/ep${EP_NUM}-${SLUG}/director-research.md
+- Creative spec: .auto-episode/ep${EP_NUM}-${SLUG}/creative-spec.md
 - The Episode Registry in CLAUDE.md (do NOT read old episode code)
 
 ${SCREENSHOT_NOTE}
@@ -1719,16 +1688,23 @@ YOUR FOCUS — score each 1-10:
 4. CUSTOM PALETTE — EP_COLORS and EP_SPRINGS in constants.ts? ${PALETTE_CRITIQUE}
 5. VISUAL POLISH — if screenshots available, READ THEM: layout balance, spacing, color harmony, text readability, professional quality. Would this stand up next to 3Blue1Brown?
 6. SIGNATURE VISUAL CRAFT — READ the core visual component code and evaluate:
-   a) Does the visual TEACH the concept? Does looking at it help you understand the idea, or is it just decorative? A viewer watching on mute should understand the core concept from the animation alone. Score 1-3 if the visual doesn't help understanding, 7-10 if it makes the concept click.
+   a) Does the visual TEACH the concept? Does looking at the visual + its on-screen text help you understand the idea, or is it just decorative? A viewer on mute should understand from visuals + text together. Score 1-3 if the visual doesn't help understanding, 7-10 if it makes the concept click.
    b) Does it represent something REAL (a data structure, a process, a computation)? Or is it just styled divs with transitions? Score 1-3 if purely decorative, 4-6 if basic representation, 7-10 if it genuinely models the concept.
    c) Does it feel ALIVE between scene transitions (ambient motion, pulse, shimmer — even subtle)? -1 if completely static between scenes.
    d) Does it EVOLVE across scenes (not just appear/disappear)? -1 if single state throughout.
    e) Is the complexity APPROPRIATE for the concept? A simple concept with a 500-line overbuilt visual is just as bad as a complex concept with a 50-line underbuilt one. Score based on whether the visual's complexity matches what the concept needs.
+7. TEXT READABILITY — if screenshots available, CHECK CAREFULLY:
+   - Does any text overlap other text? (two labels stacked, caption over a value, etc.) This is a MUST FIX — overlapping text is never acceptable.
+   - Is text crowded (too many text elements in one area)? Flag if hard to read.
+   - Are teaching labels/values clearly visible against the background?
+   Score 1-3 if text overlaps exist, 7-10 if all text is clean and readable.
+
 BONUS: If characters (Alice/Bob) are used — do they have varied emotions across scenes? Are gestures used meaningfully (not all 'none')? Do they look at each other during dialogue? Are speech bubbles readable and short? Do characters add personality or feel like decoration?
 
-OVERALL VISUAL SCORE: X/60
+OVERALL VISUAL SCORE: X/70
 
 LIST specific visual issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE
+TEXT OVERLAP is always MUST FIX — never downgrade to SHOULD FIX or NICE TO HAVE.
 
 Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-visual-iter${ITERATION}.md
 
@@ -1773,20 +1749,29 @@ ${SHARED_CRITIQUE_CONTEXT}
 
 YOUR FOCUS — evaluate as a first-time viewer. Score each 1-10:
 
-1. HOOK — does the opening grab attention? Does scene 2 start from familiar ground, or does it throw jargon at you?
-2. TEACHING FLOW — one idea per scene? Progressive reveal? Or does it dump information? Can you follow the logic from scene to scene?
-3. TEXT RULES — one sentence per heading? Max ~15 words? Or are there walls of text that would fly by in a video?
-4. EMOTIONAL ARC — do you feel curiosity → confusion → aha → satisfaction? Is there a clear highlight/aha scene? Where does the "wait, really?!" moment land?
+1. HOOK — does the opening grab attention? Does scene 2 start from something you ALREADY KNOW, or does it throw jargon at you? If a technical term appears before you've seen what it refers to, that's a MUST FIX.
+2. TEACHING FLOW — one idea per scene? Progressive reveal? Does each scene build on what you just learned? Or does it dump information or skip steps? Can you follow the logic from scene to scene WITHOUT imagining narration?
+3. MUTED COMPREHENSION — read only the on-screen text (captions, labels, values) and look at the visuals. Can you follow the full lesson without audio? The visual + text together must carry the teaching. Flag any scene where you'd need narration to understand what's happening. This is the most important criterion.
+4. EMOTIONAL ARC — do you feel curiosity > confusion > aha > satisfaction? Is there a clear highlight/aha scene? Where does the "wait, really?!" moment land?
 5. THE "SO WHAT?" TEST — after watching, do you understand WHY this matters? Is there a "why is this a big deal?" beat?
+
+STRUCTURAL FAILURES (auto-MUST FIX — these are not cosmetic):
+- Opens with jargon before grounding the concept visually
+- Beautiful visual but you can't tell what mechanism it's showing
+- A scene where the concept is only carried by imagined narration, not visible on screen
+- More than one new idea crammed into a single scene
+- Text overlapping other text, making it unreadable
 
 Walk through the episode scene by scene and narrate your experience as a viewer:
 - Scene 1: "I see... this makes me think..."
-- Scene 2: "OK so this is about... I'm curious because..."
+- Scene 2: "OK so this is about... I already know X, so this connects to..."
 - (etc.)
-- Flag any scene where you'd lose interest, get confused, or feel talked down to.
-- If characters appear: Do Alice & Bob feel like they're having a real conversation, or is it forced? Does the dialogue help you understand, or does it slow things down? Are their emotions appropriate for the moment?
+- For each scene, state: what you LEARNED (one thing), and what you ALREADY KNEW going in
+- Flag any scene where you'd lose interest, get confused, or feel talked down to
+- Flag any scene where you need to imagine narration to understand what's happening
+- If characters appear: Do Alice & Bob feel like they're having a real conversation, or is it forced?
 
-OVERALL AUDIENCE SCORE: X/20 (weighted: hook 4pts, teaching 4pts, text 4pts, arc 4pts, so-what 4pts)
+OVERALL AUDIENCE SCORE: X/20 (weighted: hook 4pts, teaching 4pts, muted-comprehension 4pts, arc 4pts, so-what 4pts)
 
 LIST specific audience issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE
 
@@ -1849,7 +1834,7 @@ ${CRIT_AUDIENCE}
 ---END AUDIENCE---
 
 MERGE RULES:
-1. Extract scores: VISUAL_SCORE (out of 60) + TECHNICAL_SCORE (out of 30) + AUDIENCE_SCORE (out of 20) = RAW TOTAL/110. Then normalize: TOTAL = round(RAW * 100 / 110) to get a score out of 100.
+1. Extract scores: VISUAL_SCORE (out of 70) + TECHNICAL_SCORE (out of 30) + AUDIENCE_SCORE (out of 20) = RAW TOTAL/120. Then normalize: TOTAL = round(RAW * 100 / 120) to get a score out of 100.
 2. If a score line is missing, estimate based on the critique content
 3. Consolidate all issues into a single list, removing duplicates
 4. When critics disagree, prioritize: MUST FIX issues from ANY critic stay MUST FIX
@@ -1860,10 +1845,10 @@ Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-iter${ITERATION}.md
 
 Format:
 ## Scores
-- Visual Design: X/60 (from visual critic — includes signature visual depth)
+- Visual Design: X/70 (from visual critic — includes signature visual depth + text readability)
 - Technical Quality: X/30 (from tech critic)
 - Audience Experience: X/20 (from audience proxy)
-- **TOTAL: X/100** (normalized from raw X/110)
+- **TOTAL: X/100** (normalized from raw X/120)
 
 ## Consolidated Issues
 
@@ -1959,8 +1944,7 @@ Also read the current code:
 - Any custom components in ${EP_PATH}/
 
 And the original vision:
-- Storyboard: .auto-episode/ep${EP_NUM}-${SLUG}/storyboard.md
-- Creative brief: .auto-episode/ep${EP_NUM}-${SLUG}/creative-brief.md
+- Creative spec: .auto-episode/ep${EP_NUM}-${SLUG}/creative-spec.md
 
 Your job:
 1. Read every issue in the critique
@@ -2209,11 +2193,8 @@ echo "║                                                                    ║
 echo "║  Artifacts produced:                                               ║"
 echo "║    research-{technical,visual,angle}.md — Parallel research        ║"
 echo "║    research.md             — Merged research document              ║"
-echo "║    director-research.md    — Director's creative direction         ║"
-echo "║    creative-brief.md       — Visual concept + signature visual     ║"
-echo "║    storyboard.md           — Scene-by-scene plan                   ║"
-echo "║    director-storyboard.md  — Director's build guidance             ║"
-echo "║    motion-script.md        — Timestamped animation spec            ║"
+echo "║    creative-spec.md        — Full creative spec (vision+storyboard+motion)║"
+echo "║    creative-spec-summary.md — Build priorities extract             ║"
 echo "║    critique-{visual,tech,audience}-iter*.md — Persona critiques    ║"
 echo "║    critique-iter*.md       — Merged critique + scores              ║"
 echo "║    fix-plan-iter*.md       — Planner's prioritized fix plans       ║"
@@ -2221,10 +2202,8 @@ echo "║    screenshots-*/          — Visual captures of each scene         �
 echo "║    build-memory.md         — Curated reusable lessons (compact)    ║"
 echo "║    episode-history.md      — Append-only episode log              ║"
 echo "║                                                                    ║"
-echo "║  Pipeline flow (v3):                                                ║"
-echo "║    Research (3 parallel) → Merge → Director Review                 ║"
-echo "║    → Creative Vision → Storyboard                                  ║"
-echo "║    → Director Review + Motion Script (merged)                      ║"
+echo "║  Pipeline flow (v4):                                                ║"
+echo "║    Research (3 parallel) → Merge → Creative Spec                   ║"
 echo "║    → Full Build (components + template) → Type Check               ║"
 echo "║    → ★ CHECKPOINT → Visual QA → Hard Gates                        ║"
 echo "║    → Critique ($NUM_CRITICS critics) → Rebuild ($MAX_CRITIQUE iter)║"

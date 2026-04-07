@@ -204,7 +204,7 @@ When building a new episode, **do NOT read existing episode VideoTemplate.tsx fi
 
 `./scripts/auto-episode.sh <topic> <ep_number> <slug> [--with-voice] [--full-auto]`
 
-Planner (can't edit code) reviews and steers. Executor (can edit code) builds. Handoff via `.auto-episode/ep<N>-<slug>/` artifacts. Pipeline: Research → Creative Vision → Storyboard → Build → Critique Loop → Voiceover. See `scripts/auto-episode.sh` for full details.
+Planner (can't edit code) reviews and steers. Executor (can edit code) builds. Handoff via `.auto-episode/ep<N>-<slug>/` artifacts. Pipeline: Research → Merge → Creative Spec → Build → Critique Loop → Voiceover. See `scripts/auto-episode.sh` for full details.
 
 ## Build Memory
 

@@ -18,7 +18,7 @@ Quick reference for all scripts and workflows. For pipeline architecture details
 | `--rebuild` | Skip planning, re-run build with existing artifacts | Testing toolkit/CLAUDE.md changes on an existing episode |
 | `--from=<phase>` | Resume from a specific phase | Re-run from any point (e.g. `--from=build-components`) |
 
-Valid phases for `--from`: `research`, `director-research`, `creative-vision`, `storyboard`, `director-storyboard`, `build-components`, `visual-qa`, `critique`
+Valid phases for `--from`: `research`, `creative-spec`, `build-components`, `visual-qa`, `critique`
 
 ### Quality Flags
 
@@ -51,7 +51,7 @@ Explicit flags override presets: `--fast --max-critique=2` gives fast defaults b
 # Draft mode — see the episode fast, stop before QA/critique
 ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --draft
 
-# Rebuild — re-render with existing storyboard after toolkit changes
+# Rebuild — re-render with existing creative spec after toolkit changes
 ./scripts/auto-episode.sh "Merkle Trees" 7 merkle-trees --rebuild
 
 # Resume from build (skip research + planning)
@@ -87,7 +87,7 @@ At each checkpoint: `[y]` continue, `[n]` type feedback (injected into next phas
 
 ```
 client/src/episodes/ep<N>-<slug>/     # Episode code (VideoTemplate.tsx, components, constants.ts)
-.auto-episode/ep<N>-<slug>/           # Work artifacts (storyboard, research, critique, screenshots)
+.auto-episode/ep<N>-<slug>/           # Work artifacts (creative-spec, research, critique, screenshots)
 .auto-episode/ep<N>-<slug>/pipeline.log   # Timestamped log
 .auto-episode/build-memory.md         # Curated reusable lessons for future builds
 .auto-episode/episode-history.md     # Append-only episode log

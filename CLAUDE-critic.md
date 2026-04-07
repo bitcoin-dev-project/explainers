@@ -10,9 +10,18 @@ The core visual component must have:
 2. **Continuous life** — ambient motion between scene changes (Brownian drift, shimmer, `requestAnimationFrame` loop, CSS @keyframes).
 3. **Multiple modes/states** — behavior changes across scenes (idle → active → climax → resolution), not just visibility on/off.
 4. **Layered rendering** — glow + core + highlight, gradients, shadows, bloom. Depth, not flat.
-5. **Teaches without voiceover** — viewer on mute should understand the core concept from animation alone. If visual is decoration while text teaches, it fails.
+5. **Muted comprehension** — viewer on mute should understand the core concept from visuals + on-screen text together. Neither alone carries everything. The diagram makes the mechanism click; the text explains what the viewer is seeing. If visual is pure decoration or text is pure decoration, it fails.
 
 Reference implementations: EP8 `SpongeCanvas.tsx` (Canvas 2D particle physics, 5 modes), EP9 `HeatmapCanvas.tsx` (Canvas 2D grid, 3 fill modes).
+
+## Structural Failures (always MUST FIX)
+These are not cosmetic issues — they mean the episode fundamentally fails at its job. Always flag as MUST FIX, never downgrade:
+1. **Opens with jargon before grounding** — a technical term appears in explanatory scenes before the viewer has seen the familiar thing it relates to. Title/topic cards are exempt.
+2. **Beautiful visual but unclear mechanism** — the animation looks great but you can't tell what concept it's showing or how the mechanism works.
+3. **Narration-dependent teaching** — a scene where the concept is only understandable if you imagine voiceover narration. The visuals + on-screen text must carry the lesson together.
+4. **Text overlapping text** — any two text elements (labels, captions, values) overlapping or so crowded they're hard to read. Visual layers can overlap; text cannot.
+5. **Multiple new ideas in one scene** — a scene that introduces more than one new concept, forcing the viewer to absorb too much at once.
+6. **No learning progression** — scenes that don't build on each other; the viewer can't follow a path from what they knew to what they learned.
 
 ## The Sameness Checklist (if 3+ are true, redesign)
 - [ ] Beige background with orange accents
@@ -42,7 +51,9 @@ Reference implementations: EP8 `SpongeCanvas.tsx` (Canvas 2D particle physics, 5
 - Is there a **"why is this a big deal?"** beat after teaching the mechanism?
 - Does cascading consequence show downstream effects?
 - Does it show running state during multi-step transforms?
-- **No silent explanatory scenes** — every scene that teaches a concept must have visible teaching anchors (labels, values, captions). If a scene has important animation but no text explaining what the viewer is looking at, flag it. A muted viewer should be able to follow the episode.
+- **No silent explanatory scenes** — every scene that teaches a concept must have visible teaching anchors (labels, values, captions). The visual + text together carry the lesson. If a scene has important animation but no text explaining what the viewer is seeing, flag it as a structural failure.
+- **Scene 2 starts from familiar ground** — the viewer must recognize what they're looking at before new concepts are introduced.
+- **No text-on-text overlap** — if screenshots show text overlapping other text, flag immediately as MUST FIX.
 
 ## Patterns ALL Old Episodes Share (flag these)
 - CE with default `{ opacity: 0, y: 15 }` for every element

@@ -38,9 +38,31 @@ The core visual component must have:
 2. **Continuous life** — ambient motion between scene changes (Brownian drift, shimmer, `requestAnimationFrame` loop, CSS @keyframes). The scene feels alive, not frozen.
 3. **Multiple modes/states** — behavior changes across scenes (e.g., idle → active → climax → resolution), not just visibility on/off.
 4. **Layered rendering** — glow + core + highlight, gradients, shadows, bloom. Depth, not flat single-layer elements.
-5. **The visual must teach without voiceover** — a viewer watching on mute should understand the core concept from the animation alone. If the visual is just decoration while text does the teaching, it fails this bar. The animation IS the explanation.
+5. **Muted comprehension** — a viewer watching on mute should understand the core concept from visuals + on-screen text together. The diagram makes the mechanism click; the text explains what the viewer is seeing. Neither alone carries everything. If the visual is pure decoration, or if text is doing all the work without the visual adding understanding, it fails.
 
 Reference implementations: EP8 `SpongeCanvas.tsx` (497 lines, Canvas 2D particle physics with 5 modes) and EP9 `HeatmapCanvas.tsx` (321 lines, Canvas 2D grid with 3 fill modes and heat color ramp).
+
+### Canvas 2D — Required Patterns
+
+When using Canvas 2D (`<canvas>` + `requestAnimationFrame`), follow these rules:
+
+1. **Use `window.devicePixelRatio` for sharp rendering.** Never hardcode `dpr = 1`. The canvas must render at the screen's native resolution:
+   ```ts
+   const dpr = window.devicePixelRatio || 1;
+   canvas.width = rect.width * dpr;
+   canvas.height = rect.height * dpr;
+   ctx.scale(dpr, dpr);
+   // Use rect.width / rect.height as logical dimensions, not canvas.width / canvas.height
+   ```
+2. **Scale all sizes relative to the canvas dimensions.** Never hardcode pixel sizes like `font = '12px ...'` or `slotH = 36`. Instead, derive sizes from the canvas:
+   ```ts
+   const W = rect.width;  // logical width (CSS pixels)
+   const H = rect.height;
+   const fontSize = W * 0.018;       // ~1.8% of width → ~35px on 1920w
+   const slotH = H * 0.06;           // ~6% of height → ~65px on 1080h
+   ctx.font = `${fontSize}px JetBrains Mono, monospace`;
+   ```
+   This ensures the visual looks correct at any viewport size and renders crisply at 1920×1080 for recording.
 
 ## Episode Architecture — Single Canvas
 
@@ -90,9 +112,10 @@ CE's default `{ opacity: 0, y: 15 } → { opacity: 1, y: 0 }` is the #1 reason e
 - **No AnimatePresence on scenes.** Individual `CE` elements handle their own enter/exit.
 - **Elements persist across scenes.** A Merkle tree built in scene 3 stays visible in scene 5 without rebuilding.
 - **Use `morph()` for elements that change position/style across scenes.** Much more dynamic than fade-between-slides.
-- **Layout with `absolute` positioning.** Since everything is on one canvas, use `absolute` + flexbox for positioning. Elements can overlap naturally.
+- **Layout with `absolute` positioning.** Since everything is on one canvas, use `absolute` + flexbox for positioning. **No element should overlap another unless it's a background effect** (glows, gradients, subtle particles behind content). Content elements — diagrams, boxes, text, labels, values — must each have their own clear space and never stack on top of each other. Reserve text zones BEFORE placing other elements.
 - **Children can have their own delays.** `CE` controls when the container mounts; children handle their own staggered reveals inside.
-- **Every explanatory scene needs teaching anchors.** At minimum: a label/value/formula inside the visual, or a short caption. Animation without any text context leaves viewers guessing. Title cards and mood beats are exempt.
+- **Every explanatory scene needs teaching anchors.** The visual and on-screen text together must carry the lesson — a muted viewer should understand from visuals + text combined. At minimum: a label/value/formula inside the visual, or a short caption that explains what the viewer is seeing. Animation without any text context leaves viewers guessing. Title cards and mood beats are exempt.
+- **Ground mechanisms with concrete values.** Explanatory sequences and mechanisms should use real labels and values where relevant (actual hex values, real block heights, etc.), not abstract placeholders. Simple bridge scenes are exempt — don't overload them.
 
 ### VideoTemplate Pattern
 ```tsx
