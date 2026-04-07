@@ -57,6 +57,23 @@ These are not cosmetic issues — they mean the episode fundamentally fails at i
 - **Scene 2 starts from familiar ground** — the viewer must recognize what they're looking at before new concepts are introduced.
 - **No text-on-text overlap** — if screenshots show text overlapping other text, flag immediately as MUST FIX.
 
+## Dynamic Necessity
+
+Every scene's motion should pass this test: "What does the animation teach that a still image with labels would not?" If the answer is "nothing" or "it just looks nicer," flag it.
+
+### Critique Criteria
+- **Didactic role clarity** — Can you identify the scene's teaching job from the visual alone? Each scene should serve one role: connect, covary, visualize_structure, visualize_process, symbol_sense, ground_in_reality, or generalize.
+- **Dynamic necessity** — Does the motion teach something a still would not? The technique (morph, copy-move, trace, linked-vary, sweep, etc.) should make the relationship clearer than a static diagram could.
+- **Representation bridge visibility** — For connect/covary scenes: can a muted viewer see what two things are being linked?
+- **Focal dominance** — Is there one clear thing to look at, or are multiple systems competing for attention?
+- **Intermediate-state honesty** — Do any mid-animation frames look meaningful but represent nothing real in the protocol?
+
+### Severity
+- Fake intermediate state → **MUST FIX**
+- Multiple competing visual systems blocking comprehension → **MUST FIX**
+- Decorative motion (removing it changes nothing) → **SHOULD FIX** (unless purely transitional < 1s)
+- No dominant focal object → **SHOULD FIX**
+
 ## Patterns ALL Old Episodes Share (flag these)
 - CE with default `{ opacity: 0, y: 15 }` for every element
 - `springs.snappy` (400/30) as only motion

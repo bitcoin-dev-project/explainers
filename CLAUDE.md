@@ -145,6 +145,15 @@ During multi-step transformations, show full data with current step highlighted/
 ### Scale Comparison — Make Big Numbers Real
 Decompose incomprehensible numbers into tangible comparisons.
 
+### Copy-Move for Connections
+To show two things are the same, related, or colliding: animate a copy of element A to sit next to element B. The motion itself creates the connection — more powerful than labels or arrows alone. Technique: `copy-move`. Role: `connect`.
+
+### Generalization Through Sweep
+Instead of showing 3 examples side by side, show 1 example that dynamically morphs through variations. The viewer sees the motion and understands "this works generally." Technique: `sweep`. Role: `generalize`.
+
+### Covariation — Two Things in Tandem
+When teaching an input→output relationship, animate both sides simultaneously. Change the input, watch the output change in real-time. The synchronized motion communicates dependency faster than any label. Technique: `linked-vary`. Role: `covary`.
+
 ## Teaching Approaches (pick one per episode)
 1. **Problem > Failure > Fix Loop** — build naive system, show how it breaks, fix. Best for protocol design.
 2. **Specific > General** — concrete example first, then abstract rule.
@@ -162,6 +171,13 @@ Curiosity > Confusion > Partial clarity > **Aha moment** > Satisfaction.
 - **All content fits within the 1920×1080 viewport.** No off-screen elements.
 - **Rule of thumb:** No single component visible for more than ~40% of the episode.
 - **Each act gets its own visual centerpiece.**
+
+### Didactic Role Per Scene
+Every scene should serve one primary teaching role (the *why*) and use a named animation technique (the *how*). These are separate vocabularies:
+
+**Roles:** `connect` (link two representations) · `covary` (show dependency — change input, output changes) · `visualize_structure` (reveal a concept's shape) · `visualize_process` (step through a procedure) · `symbol_sense` (make encodings/formulas intuitive through motion) · `ground_in_reality` (connect to real-world scenario) · `generalize` (show it works beyond the single example)
+
+**Techniques:** `copy-move` · `morph` · `trace` · `rule-based-move` · `scale-vary` · `rearrange` · `decompose` · `highlight-morph` · `sweep` · `linked-vary`
 
 ## Content Checklist
 - Pick a topic people have heard of but don't really understand

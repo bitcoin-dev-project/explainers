@@ -542,7 +542,55 @@ async function runVisualQA() {
         }
       }
 
-      // ── Log ──
+      // ── Dominance Hints (WARN-only heuristics, not hard gates) ──
+      // These are approximations based on element sizes, not semantic detectors.
+      // Treat as hints for the critic, not as reliable truth.
+      const textSelectors = 'h1, h2, h3, h4, h5, h6, p, span, [data-text], label, text';
+      const textCount = await page.evaluate(({ sel, vW, vH }) => {
+        const root = document.querySelector('[data-video]');
+        if (!root) return 0;
+        let count = 0;
+        for (const el of root.querySelectorAll(sel)) {
+          const s = getComputedStyle(el);
+          if (s.display === 'none' || s.visibility === 'hidden') continue;
+          if (parseFloat(s.opacity) < 0.1) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 5 || r.height < 5) continue;
+          // Skip DevControls (fixed bottom bar)
+          if (r.top > vH - 60 && r.height < 50) continue;
+          // Skip off-screen text
+          if (r.right < 0 || r.left > vW || r.bottom < 0 || r.top > vH) continue;
+          if ((el.textContent || '').trim().length >= 2) count++;
+        }
+        return count;
+      }, { sel: textSelectors, vW: VIEWPORT.width, vH: VIEWPORT.height });
+
+      // Largest element as % of viewport (dominance hint)
+      let largestElementPct = 0;
+      for (const el of analysis.visibleElements) {
+        const elArea = el.rect.width * el.rect.height;
+        const pct = Math.round((elArea / (VIEWPORT.width * VIEWPORT.height)) * 100);
+        if (pct > largestElementPct) largestElementPct = pct;
+      }
+
+      const densityWarn = analysis.contentCoverage >= 45 && largestElementPct < 20;
+      const textHeavyWarn = textCount >= 8;
+      const dominanceWarn = largestElementPct < 15 && analysis.visibleElements.length > 3;
+
+      if (densityWarn) {
+        if (status === 'PASS') status = 'WARN';
+        issues.push({ severity: 'WARN', msg: `DENSE SCENE (dominance hint): ${analysis.contentCoverage}% coverage but no element > 20% of viewport — may lack a clear focal object` });
+      }
+      if (textHeavyWarn) {
+        if (status === 'PASS') status = 'WARN';
+        issues.push({ severity: 'WARN', msg: `TEXT HEAVY (dominance hint): ${textCount} text elements visible — consider reducing or splitting` });
+      }
+      if (dominanceWarn && !densityWarn) {
+        if (status === 'PASS') status = 'WARN';
+        issues.push({ severity: 'WARN', msg: `NO FOCAL OBJECT (dominance hint): largest element is ${largestElementPct}% of viewport with ${analysis.visibleElements.length} elements — no clear visual anchor` });
+      }
+
+      // ── Log (after all status mutations, so console matches report) ──
       const icon = { PASS: '✓', WARN: '⚠', FAIL: '✗' }[status];
       const color = { PASS: '\x1b[32m', WARN: '\x1b[33m', FAIL: '\x1b[31m' }[status];
       const reset = '\x1b[0m';
@@ -566,6 +614,10 @@ async function runVisualQA() {
           farOff: farOffCount,
           textOverlaps: textOverlap.overlaps.length,
           coverage: analysis.contentCoverage,
+          textCount,
+          largestElementPct,
+          densityWarn,
+          dominanceWarn,
         },
       });
 

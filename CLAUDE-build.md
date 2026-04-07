@@ -117,6 +117,40 @@ CE's default `{ opacity: 0, y: 15 } → { opacity: 1, y: 0 }` is the #1 reason e
 - **Children can have their own delays.** `CE` controls when the container mounts; children handle their own staggered reveals inside.
 - **Every explanatory scene needs teaching anchors.** The visual and on-screen text together must carry the lesson — a muted viewer should understand from visuals + text combined. At minimum: a label/value/formula inside the visual, or a short caption that explains what the viewer is seeing. Animation without any text context leaves viewers guessing. Title cards and mood beats are exempt.
 - **Ground mechanisms with concrete values.** Explanatory sequences and mechanisms should use real labels and values where relevant (actual hex values, real block heights, etc.), not abstract placeholders. Simple bridge scenes are exempt — don't overload them.
+- **Process scenes show change over time; concept scenes stabilize and label a structure.** Don't mix both in one scene without justification in the creative spec.
+
+### Motion Must Teach
+
+Every animated element must have a didactic job stated in the creative spec. The spec assigns each scene a **role** (the teaching purpose) and a **technique** (the animation method). These are strictly separate vocabularies:
+
+**Roles** (the *why* — what the scene teaches):
+`connect` | `covary` | `visualize_structure` | `visualize_process` | `symbol_sense` | `ground_in_reality` | `generalize`
+
+**Techniques** (the *how* — what the animation does):
+`copy-move` | `morph` | `trace` | `rule-based-move` | `scale-vary` | `rearrange` | `decompose` | `highlight-morph` | `sweep` | `linked-vary`
+
+If the role is `covary`, two things must animate in tandem (technique: `linked-vary`). If the technique is `morph`, one representation must physically transform into another. If motion can't make the relationship clearer, simplify the scene to a labeled still with one animated reveal.
+
+#### Preferred Technique Patterns
+
+| Technique | When to use | Bitcoin example |
+|---|---|---|
+| **copy-move** | Show that two things in different contexts are the same or collide | Copy a TXID from block A, move it next to block B's TXID to show collision |
+| **morph** | Show input→output or before→after correspondence | Transaction fields morph into serialized bytes |
+| **linked-vary** | Show dependency between two quantities changing in tandem | Vary nonce slider, hash output changes simultaneously |
+| **trace** | Show a path or trajectory through a structure | Highlight Merkle proof path from leaf to root |
+| **rule-based-move** | Simulate a real process with physics/math rules | Block propagation across network nodes |
+| **rearrange** | Reveal structural similarity between expressions | Move opcodes/fields to align with another structure |
+| **sweep** | Show a concept works for all cases, not just one | Slide highlighted tx through Merkle tree leaves |
+| **scale-vary** | Emphasize magnitude differences | Grow a block to show 2^256 search space |
+| **decompose** | Break a complex object into labeled parts | Transaction split into version, inputs, outputs, locktime |
+| **highlight-morph** | Draw attention by changing shape/color of emphasis markers | Color-code matching terms in two expressions |
+
+#### Anti-Patterns
+- **Decorative motion** — spinning, pulsing, or floating that doesn't teach. If removing the animation changes nothing about comprehension, remove it.
+- **Fake intermediate state** — a mid-morph frame that looks meaningful but represents nothing in the protocol. Hash functions don't have a "halfway hashed" state.
+- **Parallel panel overload** — showing 3+ examples simultaneously when sweeping through them sequentially (technique: `sweep`) would teach better.
+- **Symbol without grounding** — a formula appears before the viewer has seen what it describes visually.
 
 ### VideoTemplate Pattern
 ```tsx

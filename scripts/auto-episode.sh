@@ -995,6 +995,11 @@ CREATIVE DECISIONS:
 7. Per the Episode Registry — what must THIS episode do differently? What animation library should drive the core visual? (GSAP? SVG morph? Canvas 2D?)
 8. Should this episode use CHARACTERS (Alice & Bob stick figures)? Characters work best for dialogue-driven teaching — Alice explains, Bob asks questions. They add personality and make abstract topics feel like a conversation. Not every episode needs them. Decide YES or NO and explain why.
 
+DIDACTIC SPINE — for each narrative act, name the dominant teaching role:
+  Allowed roles: connect | covary | visualize_structure | visualize_process | symbol_sense | ground_in_reality | generalize
+  Example: "Act 1: ground_in_reality → Act 2: visualize_process → Act 3: covary → Act 4: generalize"
+  This spine shapes the visual strategy for the whole episode.
+
 Be opinionated. Be decisive. Don't hedge.
 
 Write your answers into Part 1 of the output document (format below).
@@ -1085,10 +1090,10 @@ For EACH scene, write:
 3. ON-SCREEN CAPTION (short heading — max ~15 words, orients the viewer)
 4. TEXT INSIDE VISUAL (labels, values, formulas, field names INSIDE the diagram — no word limit. These explain what the viewer is seeing. Think 3Blue1Brown: equations next to geometry, labels pointing at things, real values inside blocks. The text must make the visual self-explanatory.)
 5. TEACHING ANCHORS — the exact on-screen text (labels, values, captions) that a MUTED viewer needs to understand what they're looking at and what changed. Visual + text together must carry the lesson. Every explanatory scene MUST have at least one. Title cards and mood beats are exempt.
-6. ON SCREEN — list EVERY visual element visible in this scene. Max 2-3 visual systems (one dominant + supporting text/labels). A small persistent element like a timeline bar counts toward this budget. If you need more than 3, split into multiple scenes.
+6. ON SCREEN — list EVERY visual element visible in this scene. Max 2-3 visual systems (one dominant + supporting text/labels). A small persistent element like a timeline bar counts toward this budget. If you need more than 3, split into multiple scenes. Mark which element is the **FOCAL OBJECT** — the one thing the eye tracks.
 7. CLEARED — list what was removed or hidden since the previous scene. When starting a new narrative act, clear the previous act's visuals entirely. Write "none" if nothing was removed.
-8. VISUAL DESCRIPTION (what the viewer sees — the diagram/animation that makes the concept click visually)
-9. ANIMATION DETAILS (what enters, exits, morphs, specific delays)
+8. VISUAL DESCRIPTION (what the viewer sees — the diagram/animation that makes the concept click visually). Name the primary **ANIMATION TECHNIQUE** from this vocabulary: copy-move, morph, trace, rule-based-move, scale-vary, rearrange, decompose, highlight-morph, sweep, linked-vary.
+9. ANIMATION DETAILS (what enters, exits, morphs, specific delays). State the **DIDACTIC ROLE** (one of: connect, covary, visualize_structure, visualize_process, symbol_sense, ground_in_reality, generalize) and a one-line **WHY DYNAMIC** — what motion teaches that a still image would not.
 10. CHARACTERS (if this scene uses Alice/Bob — otherwise omit):
    alice: emotion=<emotion>, gesture=<gesture>, lookAt=<dir>, says="<speech>"
    bob: emotion=<emotion>, gesture=<gesture>, lookAt=<dir>, says="<speech>"
@@ -1096,6 +1101,7 @@ For EACH scene, write:
    Available gestures: none, wave, point, shrug, present
    Available lookAt: center, left, right, up, down
 11. LEARNING STEP — what does the viewer know at this point? What ONE new thing does this scene add? How does it connect to the next? (Not just "teaches X" — state the progression: "viewer now understands A, this scene shows how A leads to B")
+12. REPRESENTATION BRIDGE (optional — required when the didactic role is connect or covary). Name the two forms being linked, e.g. "raw bytes → TXID", "nonce → hash output", "block height → uniqueness rule".
 
 Mark the HIGHLIGHT SCENE (aha moment) with [HIGHLIGHT].
 Mark scenes using the SIGNATURE VISUAL with [SIGNATURE].
@@ -1141,6 +1147,11 @@ QUALITY CHECK:
 12. Is the signature visual original?
 13. Real values used where relevant?
 14. If characters: distinct roles? Varied emotions? Short speech bubbles (max ~12 words)?
+
+DYNAMIC NECESSITY CHECK:
+15. Is every scene's motion teaching a real relationship, or just decorating a static idea? Flag any scene where removing the animation would change nothing about comprehension.
+16. Does any scene introduce a fake intermediate state — a mid-animation frame that looks meaningful but represents nothing in the protocol? (Hash functions don't have a "halfway hashed" state.)
+17. Could any scene become clearer by replacing simultaneous examples with one evolving example (generalization through sweep)?
 
 Write a brief verdict. If the pedagogy check fails on ANY point, GO BACK AND REVISE Part 3 before proceeding. Pedagogy failures are not cosmetic — they mean the episode doesn't teach.
 
@@ -1188,6 +1199,8 @@ STEP 8: BUILD PRIORITIES SUMMARY
 ═══════════════════════════════════════════════
 
 Write a concise build handoff summary:
+## Didactic Spine (one line per act: dominant teaching role + primary technique)
+## Visual Lifetimes (which persistent components must unmount at each act break)
 ## Build Priorities (what to build FIRST — signature visual, then what?)
 ## Non-Negotiables (things the builder must not deviate from)
 ## Risk Areas (what's hardest to get right)
@@ -1203,12 +1216,12 @@ FILE 1: .auto-episode/ep${EP_NUM}-${SLUG}/creative-spec.md
 Full document with all parts:
 - Part 1: Creative Direction (LEARNING PATH: prerequisites, wrong mental model, learning steps, jargon grounding map; CREATIVE DECISIONS: teaching approach, hook, story arc, aha moment, what to skip, visual differentiation, characters, key real values, risks)
 - Part 2: Visual Design (signature visual, EP_COLORS, EP_SPRINGS, layout, animation personality, custom components, character plan, self-review)
-- Part 3: Storyboard (scene-by-scene with all 11 fields per scene including ON SCREEN, CLEARED, LEARNING STEP, scene layouts)
+- Part 3: Storyboard (scene-by-scene with all 12 fields per scene including ON SCREEN with focal object, VISUAL DESCRIPTION with technique, ANIMATION DETAILS with didactic role, REPRESENTATION BRIDGE, CLEARED, LEARNING STEP, scene layouts)
 - Part 4: Storyboard Review (pedagogy check + quality check, verdict)
 - Part 5: Motion Script (timestamped per-scene, persistent elements, animation assignments, scene layouts, character choreography)
 
 FILE 2: .auto-episode/ep${EP_NUM}-${SLUG}/creative-spec-summary.md
-Just the build priorities summary from Step 8. Short and actionable.
+Build priorities summary from Step 8: Didactic Spine, Visual Lifetimes, Build Priorities, Non-Negotiables, Risk Areas, Scenes to Strengthen. Short and actionable.
 
 Be PRECISE. Both documents are the developer's build spec — vague guidance = vague episode.
 PROMPT_END
@@ -1706,12 +1719,14 @@ YOUR FOCUS — score each 1-10:
    - Are teaching labels/values clearly visible against the background?
    Score 1-3 if text overlaps exist, 7-10 if all text is clean and readable.
 
-8. SCENE DENSITY — if screenshots available, CHECK EACH SCENE:
+8. SCENE DENSITY & DYNAMIC NECESSITY — if screenshots available, CHECK EACH SCENE:
    - How many distinct visual systems are on screen? (a grid, a diagram, a timeline, a detail panel each count as one). Max 2-3 per scene.
    - Are there stale visuals from a previous act that should have been cleared? (e.g., a UTXO grid still visible during a scene about nLockTime)
    - Does the scene feel clean and focused, or busy and overwhelming?
-   Score 1-3 if scenes are overcrowded (4+ visual systems), 4-6 if some clutter, 7-10 if each scene is clean with one dominant visual.
-   OVERCROWDED SCENES (4+ visual systems) are MUST FIX.
+   - DYNAMIC NECESSITY: does each scene's motion teach something a still image would not? Flag decorative motion (spinning, pulsing, floating that doesn't teach). Flag fake intermediate states (mid-animation frames that look meaningful but represent nothing in the protocol).
+   - Is there one clear FOCAL OBJECT per scene, or are multiple systems competing for attention?
+   Score 1-3 if scenes are overcrowded (4+ visual systems) or motion is purely decorative, 4-6 if some clutter or unnecessary motion, 7-10 if each scene is clean with one dominant visual and purposeful motion.
+   OVERCROWDED SCENES (4+ visual systems) and FAKE INTERMEDIATE STATES are MUST FIX. Decorative motion and missing focal object are SHOULD FIX.
 
 BONUS: If characters (Alice/Bob) are used — do they have varied emotions across scenes? Are gestures used meaningfully (not all 'none')? Do they look at each other during dialogue? Are speech bubbles readable and short? Do characters add personality or feel like decoration?
 
@@ -1783,6 +1798,8 @@ Walk through the episode scene by scene and narrate your experience as a viewer:
 - For each scene, state: what you LEARNED (one thing), and what you ALREADY KNEW going in
 - Flag any scene where you'd lose interest, get confused, or feel talked down to
 - Flag any scene where you need to imagine narration to understand what's happening
+- Which scene's motion most HELPED your understanding? Which felt ornamental or decorative?
+- Could any lesson have been shown with fewer simultaneous objects on screen?
 - If characters appear: Do Alice & Bob feel like they're having a real conversation, or is it forced?
 
 OVERALL AUDIENCE SCORE: X/20 (weighted: hook 4pts, teaching 4pts, muted-comprehension 4pts, arc 4pts, so-what 4pts)
