@@ -19,9 +19,11 @@ These are not cosmetic issues — they mean the episode fundamentally fails at i
 1. **Opens with jargon before grounding** — a technical term appears in explanatory scenes before the viewer has seen the familiar thing it relates to. Title/topic cards are exempt.
 2. **Beautiful visual but unclear mechanism** — the animation looks great but you can't tell what concept it's showing or how the mechanism works.
 3. **Narration-dependent teaching** — a scene where the concept is only understandable if you imagine voiceover narration. The visuals + on-screen text must carry the lesson together.
-4. **Text overlapping text** — any two text elements (labels, captions, values) overlapping or so crowded they're hard to read. Visual layers can overlap; text cannot.
+4. **Text overlapping text** — any two text elements (labels, captions, values) overlapping or so crowded they're hard to read.
 5. **Multiple new ideas in one scene** — a scene that introduces more than one new concept, forcing the viewer to absorb too much at once.
 6. **No learning progression** — scenes that don't build on each other; the viewer can't follow a path from what they knew to what they learned.
+7. **Visual clutter / overcrowded scenes** — more than 3 distinct visual systems on screen simultaneously (e.g., a grid + a diagram + a timeline + a detail panel all at once). Each scene should have ONE dominant visual + supporting text. If a screenshot looks busy or overwhelming, the scene is doing too much.
+8. **Stale visuals from previous acts** — a component mounted for scenes where it's no longer relevant. When the episode moves to a new narrative act, previous act's visuals should be cleared. A UTXO grid still visible during a scene about nLockTime means the build didn't scope its components properly.
 
 ## The Sameness Checklist (if 3+ are true, redesign)
 - [ ] Beige background with orange accents

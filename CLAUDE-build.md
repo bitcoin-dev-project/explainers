@@ -110,8 +110,9 @@ CE's default `{ opacity: 0, y: 15 } → { opacity: 1, y: 0 }` is the #1 reason e
 
 ### Key Principles
 - **No AnimatePresence on scenes.** Individual `CE` elements handle their own enter/exit.
-- **Elements persist across scenes.** A Merkle tree built in scene 3 stays visible in scene 5 without rebuilding.
-- **Use `morph()` for elements that change position/style across scenes.** Much more dynamic than fade-between-slides.
+- **Elements persist within an act, clear between acts.** Within a narrative act (3-5 scenes about the same concept), elements should persist and build on each other. But when the episode moves to a different act (new concept, new visual), unmount the previous act's components. Use `sceneRange()` to scope components to their relevant scenes — don't mount a component for the whole episode when it's only relevant for one act.
+- **Use `morph()` for elements that change position/style across scenes.** But scope morph to the scenes where the element is actively teaching. A UTXO grid relevant in scenes 3-7 should unmount before scene 8 introduces a new visual.
+- **Element budget per scene.** Each scene should have ONE dominant visual + supporting text/labels. Maximum 2-3 visual systems on screen at once. If a scene needs more, it's trying to do too much — split it into multiple scenes. A small persistent element (like a timeline bar) counts toward this budget.
 - **Layout with `absolute` positioning.** Since everything is on one canvas, use `absolute` + flexbox for positioning. **No element should overlap another unless it's a background effect** (glows, gradients, subtle particles behind content). Content elements — diagrams, boxes, text, labels, values — must each have their own clear space and never stack on top of each other. Reserve text zones BEFORE placing other elements.
 - **Children can have their own delays.** `CE` controls when the container mounts; children handle their own staggered reveals inside.
 - **Every explanatory scene needs teaching anchors.** The visual and on-screen text together must carry the lesson — a muted viewer should understand from visuals + text combined. At minimum: a label/value/formula inside the visual, or a short caption that explains what the viewer is seeing. Animation without any text context leaves viewers guessing. Title cards and mood beats are exempt.

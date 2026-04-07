@@ -1085,28 +1085,35 @@ For EACH scene, write:
 3. ON-SCREEN CAPTION (short heading — max ~15 words, orients the viewer)
 4. TEXT INSIDE VISUAL (labels, values, formulas, field names INSIDE the diagram — no word limit. These explain what the viewer is seeing. Think 3Blue1Brown: equations next to geometry, labels pointing at things, real values inside blocks. The text must make the visual self-explanatory.)
 5. TEACHING ANCHORS — the exact on-screen text (labels, values, captions) that a MUTED viewer needs to understand what they're looking at and what changed. Visual + text together must carry the lesson. Every explanatory scene MUST have at least one. Title cards and mood beats are exempt.
-6. VISUAL DESCRIPTION (what the viewer sees — the diagram/animation that makes the concept click visually)
-7. ANIMATION DETAILS (what enters, exits, morphs, specific delays)
-8. CHARACTERS (if this scene uses Alice/Bob — otherwise omit):
+6. ON SCREEN — list EVERY visual element visible in this scene. Max 2-3 visual systems (one dominant + supporting text/labels). A small persistent element like a timeline bar counts toward this budget. If you need more than 3, split into multiple scenes.
+7. CLEARED — list what was removed or hidden since the previous scene. When starting a new narrative act, clear the previous act's visuals entirely. Write "none" if nothing was removed.
+8. VISUAL DESCRIPTION (what the viewer sees — the diagram/animation that makes the concept click visually)
+9. ANIMATION DETAILS (what enters, exits, morphs, specific delays)
+10. CHARACTERS (if this scene uses Alice/Bob — otherwise omit):
    alice: emotion=<emotion>, gesture=<gesture>, lookAt=<dir>, says="<speech>"
    bob: emotion=<emotion>, gesture=<gesture>, lookAt=<dir>, says="<speech>"
    Available emotions: neutral, happy, excited, curious, confused, thinking, surprised, worried, annoyed, explaining, laughing
    Available gestures: none, wave, point, shrug, present
    Available lookAt: center, left, right, up, down
-9. LEARNING STEP — what does the viewer know at this point? What ONE new thing does this scene add? How does it connect to the next? (Not just "teaches X" — state the progression: "viewer now understands A, this scene shows how A leads to B")
+11. LEARNING STEP — what does the viewer know at this point? What ONE new thing does this scene add? How does it connect to the next? (Not just "teaches X" — state the progression: "viewer now understands A, this scene shows how A leads to B")
 
 Mark the HIGHLIGHT SCENE (aha moment) with [HIGHLIGHT].
 Mark scenes using the SIGNATURE VISUAL with [SIGNATURE].
 
 Use AS MANY SCENES as the topic needs. 15-25 scenes is typical.
 
+SCENE COMPOSITION RULES:
+- **Element budget:** max 2-3 visual systems per scene. ONE dominant visual + supporting text. If a scene feels crowded, it's trying to do too much — split it.
+- **Act transitions:** when moving to a new narrative act (new concept, new visual), clear the previous act's elements. Don't accumulate visuals across the whole episode.
+- **Persistent elements:** morph() should only span the scenes where the element is actively relevant. A UTXO grid relevant in scenes 3-7 should unmount before scene 8 introduces a new visual. Exception: a small persistent element (e.g., timeline bar) can span the whole episode if compact.
+
 VIEWPORT-FIRST SCENE COMPOSITION:
 After the scene list, include a "Scene Layout" section:
 1. All content fits within 1920x1080 viewport. No oversized canvases.
 2. For EACH scene, describe the VIEWPORT COMPOSITION — what is visible and where.
 3. Use LAYOUT VARIETY across scenes — split-screen, full-bleed, asymmetric, centered.
-4. Prefer PERSISTENT VISUALS with morph() when content spans multiple scenes.
-5. Use sceneRange() or CE enter/exit to swap content when appropriate.
+4. Persistent visuals via morph() should be scoped to their relevant act, not the whole episode.
+5. Use sceneRange() or CE enter/exit to swap content between acts.
 6. Every element must be VISIBLE on screen. No off-screen content.
 
 Write into Part 3 of the output document.
@@ -1196,7 +1203,7 @@ FILE 1: .auto-episode/ep${EP_NUM}-${SLUG}/creative-spec.md
 Full document with all parts:
 - Part 1: Creative Direction (LEARNING PATH: prerequisites, wrong mental model, learning steps, jargon grounding map; CREATIVE DECISIONS: teaching approach, hook, story arc, aha moment, what to skip, visual differentiation, characters, key real values, risks)
 - Part 2: Visual Design (signature visual, EP_COLORS, EP_SPRINGS, layout, animation personality, custom components, character plan, self-review)
-- Part 3: Storyboard (scene-by-scene with all 9 fields per scene including LEARNING STEP, scene layouts)
+- Part 3: Storyboard (scene-by-scene with all 11 fields per scene including ON SCREEN, CLEARED, LEARNING STEP, scene layouts)
 - Part 4: Storyboard Review (pedagogy check + quality check, verdict)
 - Part 5: Motion Script (timestamped per-scene, persistent elements, animation assignments, scene layouts, character choreography)
 
@@ -1699,12 +1706,19 @@ YOUR FOCUS — score each 1-10:
    - Are teaching labels/values clearly visible against the background?
    Score 1-3 if text overlaps exist, 7-10 if all text is clean and readable.
 
+8. SCENE DENSITY — if screenshots available, CHECK EACH SCENE:
+   - How many distinct visual systems are on screen? (a grid, a diagram, a timeline, a detail panel each count as one). Max 2-3 per scene.
+   - Are there stale visuals from a previous act that should have been cleared? (e.g., a UTXO grid still visible during a scene about nLockTime)
+   - Does the scene feel clean and focused, or busy and overwhelming?
+   Score 1-3 if scenes are overcrowded (4+ visual systems), 4-6 if some clutter, 7-10 if each scene is clean with one dominant visual.
+   OVERCROWDED SCENES (4+ visual systems) are MUST FIX.
+
 BONUS: If characters (Alice/Bob) are used — do they have varied emotions across scenes? Are gestures used meaningfully (not all 'none')? Do they look at each other during dialogue? Are speech bubbles readable and short? Do characters add personality or feel like decoration?
 
-OVERALL VISUAL SCORE: X/70
+OVERALL VISUAL SCORE: X/80
 
 LIST specific visual issues with priority: MUST FIX / SHOULD FIX / NICE TO HAVE
-TEXT OVERLAP is always MUST FIX — never downgrade to SHOULD FIX or NICE TO HAVE.
+TEXT OVERLAP and OVERCROWDED SCENES are always MUST FIX — never downgrade.
 
 Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-visual-iter${ITERATION}.md
 
@@ -1834,7 +1848,7 @@ ${CRIT_AUDIENCE}
 ---END AUDIENCE---
 
 MERGE RULES:
-1. Extract scores: VISUAL_SCORE (out of 70) + TECHNICAL_SCORE (out of 30) + AUDIENCE_SCORE (out of 20) = RAW TOTAL/120. Then normalize: TOTAL = round(RAW * 100 / 120) to get a score out of 100.
+1. Extract scores: VISUAL_SCORE (out of 80) + TECHNICAL_SCORE (out of 30) + AUDIENCE_SCORE (out of 20) = RAW TOTAL/130. Then normalize: TOTAL = round(RAW * 100 / 130) to get a score out of 100.
 2. If a score line is missing, estimate based on the critique content
 3. Consolidate all issues into a single list, removing duplicates
 4. When critics disagree, prioritize: MUST FIX issues from ANY critic stay MUST FIX
@@ -1845,10 +1859,10 @@ Save to .auto-episode/ep${EP_NUM}-${SLUG}/critique-iter${ITERATION}.md
 
 Format:
 ## Scores
-- Visual Design: X/70 (from visual critic — includes signature visual depth + text readability)
+- Visual Design: X/80 (from visual critic — includes signature visual depth, text readability, scene density)
 - Technical Quality: X/30 (from tech critic)
 - Audience Experience: X/20 (from audience proxy)
-- **TOTAL: X/100** (normalized from raw X/120)
+- **TOTAL: X/100** (normalized from raw X/130)
 
 ## Consolidated Issues
 
