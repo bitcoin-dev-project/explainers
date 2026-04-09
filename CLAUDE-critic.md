@@ -24,6 +24,8 @@ These are not cosmetic issues — they mean the episode fundamentally fails at i
 6. **No learning progression** — scenes that don't build on each other; the viewer can't follow a path from what they knew to what they learned.
 7. **Visual clutter / overcrowded scenes** — more than 3 distinct visual systems on screen simultaneously (e.g., a grid + a diagram + a timeline + a detail panel all at once). Each scene should have ONE dominant visual + supporting text. If a screenshot looks busy or overwhelming, the scene is doing too much.
 8. **Stale visuals from previous acts** — a component mounted for scenes where it's no longer relevant. When the episode moves to a new narrative act, previous act's visuals should be cleared. A UTXO grid still visible during a scene about nLockTime means the build didn't scope its components properly.
+9. **Panel fallback / slide-deck runs** — 2+ consecutive explanatory scenes where the primary visual is text panels, card layouts, or bordered rectangles with only entrance animations (fade/slide in). Each act needs a real visual centerpiece that transforms, morphs, or simulates — not just enters. One shallow bridge scene between acts is OK; a run of them means the episode is a slide deck.
+10. **Act without a visual centerpiece** — a narrative act (3+ scenes on the same concept) where no component has an underlying model, internal choreography, or multiple states. Every act needs a visual that would break the scene if removed — not a data display that could be replaced by a static infographic.
 
 ## The Sameness Checklist (if 3+ are true, redesign)
 - [ ] Beige background with orange accents

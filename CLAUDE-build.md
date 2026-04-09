@@ -38,9 +38,22 @@ The core visual component must have:
 2. **Continuous life** — ambient motion between scene changes (Brownian drift, shimmer, `requestAnimationFrame` loop, CSS @keyframes). The scene feels alive, not frozen.
 3. **Multiple modes/states** — behavior changes across scenes (e.g., idle → active → climax → resolution), not just visibility on/off.
 4. **Layered rendering** — glow + core + highlight, gradients, shadows, bloom. Depth, not flat single-layer elements.
-5. **Muted comprehension** — a viewer watching on mute should understand the core concept from visuals + on-screen text together. The diagram makes the mechanism click; the text explains what the viewer is seeing. Neither alone carries everything. If the visual is pure decoration, or if text is doing all the work without the visual adding understanding, it fails.
+5. **Muted comprehension — visual leads, text clarifies.** A muted viewer should understand the core concept because the **visual demonstrates the mechanism** and text labels/captions clarify what they're seeing. The visual must do the heavy lifting — if you removed the animation and kept only the text, the scene should feel broken. If you removed the text and kept only the animation, the viewer should still roughly follow. Text supports the visual, not the other way around.
 
 Reference implementations: EP8 `SpongeCanvas.tsx` (497 lines, Canvas 2D particle physics with 5 modes) and EP9 `HeatmapCanvas.tsx` (321 lines, Canvas 2D grid with 3 fill modes and heat color ramp).
+
+### What Counts as a Custom Visual Component
+
+A `.tsx` file only counts as a custom visual if it has **all three**:
+1. **Underlying model or internal choreography** — Canvas 2D render loop, SVG path animation, GSAP timeline with multi-step within-scene motion, or a state machine driving visual changes. Entrance stagger alone (opacity + y + stagger) does NOT count.
+2. **Multiple states across scenes** — the component behaves differently when `scene` changes (not just mounts/unmounts). It should morph, reconfigure, or change mode.
+3. **Visual weight** — it occupies meaningful screen space and the eye is drawn to it. A row of labeled fields in bordered divs is a data display, not a visual centerpiece.
+
+**Not custom visuals:** comparison tables, field lists, card layouts, text panels, badge grids — even if they're in their own `.tsx` file and use GSAP for entrance animations. These are supporting elements, not act centerpieces.
+
+### Act-Level Visual Coverage
+
+Each narrative act (3-5 scenes) needs its own **real visual centerpiece** — a component that passes the three criteria above. The signature visual should own at least one full act and return in a payoff scene, covering roughly a quarter to a third of all scenes. The remaining acts need their own distinct centerpieces (can be simpler but must still pass the three criteria).
 
 ### Canvas 2D — Required Patterns
 
@@ -93,7 +106,7 @@ ep<N>-<slug>/
   // Then: <ECE s={s} enter={2} exit={5}>text</ECE>
   ```
 - **morph()** — `<motion.div {...morph(s, { 2: { x: 100 }, 4: { x: 300 } })}>` — scene-driven state transitions. **This should be your primary tool.** Elements stay mounted and transform between states.
-- **sceneRange()** — `sceneRange(s, 2, 8)` — boolean helper for conditional rendering.
+- **sceneRange()** — `sceneRange(s, 2, 8)` — boolean helper for conditional rendering. **Exit is exclusive:** `sceneRange(s, 2, 8)` means visible when `s >= 2 && s < 8`. For a single scene, use `sceneRange(s, 5, 6)` NOT `sceneRange(s, 5, 5)` — the latter renders nothing.
 
 ### The Enter/Exit Trap
 
@@ -113,9 +126,16 @@ CE's default `{ opacity: 0, y: 15 } → { opacity: 1, y: 0 }` is the #1 reason e
 - **Elements persist within an act, clear between acts.** Within a narrative act (3-5 scenes about the same concept), elements should persist and build on each other. But when the episode moves to a different act (new concept, new visual), unmount the previous act's components. Use `sceneRange()` to scope components to their relevant scenes — don't mount a component for the whole episode when it's only relevant for one act.
 - **Use `morph()` for elements that change position/style across scenes.** But scope morph to the scenes where the element is actively teaching. A UTXO grid relevant in scenes 3-7 should unmount before scene 8 introduces a new visual.
 - **Element budget per scene.** Each scene should have ONE dominant visual + supporting text/labels. Maximum 2-3 visual systems on screen at once. If a scene needs more, it's trying to do too much — split it into multiple scenes. A small persistent element (like a timeline bar) counts toward this budget.
-- **Layout with `absolute` positioning.** Since everything is on one canvas, use `absolute` + flexbox for positioning. **No element should overlap another unless it's a background effect** (glows, gradients, subtle particles behind content). Content elements — diagrams, boxes, text, labels, values — must each have their own clear space and never stack on top of each other. Reserve text zones BEFORE placing other elements.
+- **Layout with `absolute` positioning + zone reservation.** Since everything is on one canvas, use `absolute` + flexbox for positioning. **Text overlap is the #1 visual bug — prevent it with zones:**
+  - **TOP STRIP** (0-12vh): scene heading or caption — ONE text element only
+  - **MAIN AREA** (12-85vh): visual + labels inside it — labels positioned relative to their visual parent, not viewport-absolute
+  - **BOTTOM STRIP** (85-100vh): footnote, status, or CTA — ONE text element only
+  - Never position two text elements at overlapping absolute coordinates. If a heading is at `top: 6vh` and a subtitle is at `top: 8vh`, they WILL overlap.
+  - For text inside visuals (labels on diagrams): position relative to the parent component, not viewport-absolute. This prevents collisions with scene-level captions.
+  - Before writing a scene: list every text element and its zone. Two elements in the same zone = reposition one.
+  - Visual layers (glows, backgrounds, diagrams) can overlap freely, but text is always readable on top.
 - **Children can have their own delays.** `CE` controls when the container mounts; children handle their own staggered reveals inside.
-- **Every explanatory scene needs teaching anchors.** The visual and on-screen text together must carry the lesson — a muted viewer should understand from visuals + text combined. At minimum: a label/value/formula inside the visual, or a short caption that explains what the viewer is seeing. Animation without any text context leaves viewers guessing. Title cards and mood beats are exempt.
+- **Every explanatory scene needs teaching anchors — but the visual leads.** The animated visual demonstrates the mechanism; labels/values/captions clarify what the viewer is seeing. If a scene is mostly text panels with entrance animations, the visual isn't leading — it's a slide. At minimum: a real animated visual + a label/value/caption. Title cards and mood beats are exempt.
 - **Ground mechanisms with concrete values.** Explanatory sequences and mechanisms should use real labels and values where relevant (actual hex values, real block heights, etc.), not abstract placeholders. Simple bridge scenes are exempt — don't overload them.
 - **Process scenes show change over time; concept scenes stabilize and label a structure.** Don't mix both in one scene without justification in the creative spec.
 
@@ -151,6 +171,7 @@ If the role is `covary`, two things must animate in tandem (technique: `linked-v
 - **Fake intermediate state** — a mid-morph frame that looks meaningful but represents nothing in the protocol. Hash functions don't have a "halfway hashed" state.
 - **Parallel panel overload** — showing 3+ examples simultaneously when sweeping through them sequentially (technique: `sweep`) would teach better.
 - **Symbol without grounding** — a formula appears before the viewer has seen what it describes visually.
+- **Panel fallback / slide-deck scene** — a scene whose primary visual is rows, cards, or bordered rectangles with text inside, animated only with entrance stagger (opacity + y-translate). This is a slide, not an animation. If the scene stripped away its GSAP entrance and just appeared instantly, would it look like a static infographic? Then the visual isn't doing work. Each explanatory scene needs a visual element that **transforms, morphs, or simulates** — not just enters.
 
 ### VideoTemplate Pattern
 ```tsx

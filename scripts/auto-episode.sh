@@ -761,7 +761,7 @@ else
 PROMPT_TECH=$(cat <<PROMPT_END
 ${CTX_RESEARCH}
 
-You are researching the TECHNICAL DETAILS of a Bitcoin/crypto topic for an animated explainer video. Your job is deep technical accuracy.
+You are researching the TECHNICAL DETAILS of a Bitcoin/cryptography topic for an animated explainer video. Your job is deep technical accuracy.
 
 TOPIC: ${TOPIC}
 
@@ -984,6 +984,7 @@ a) PREREQUISITES — what does the viewer already know? (e.g., "knows what a has
 b) WRONG MENTAL MODEL — what do most viewers incorrectly assume about this topic? What's the common misconception you need to displace?
 c) LEARNING STEPS — the path from what they know to what they'll learn, as 3-5 concrete steps. Each step builds on the previous. Example: "1. You know blocks have transactions → 2. But how do you prove YOUR transaction is in a block? → 3. You'd need to download the whole block → 4. Merkle trees let you prove it with just a small path → 5. Here's how that path is computed."
 d) NO JARGON BEFORE GROUNDING — list any technical terms this episode uses. For each, note the scene where it's first visually grounded. A term like "Merkle proof" or "nonce" CANNOT appear in explanatory scenes until the viewer has first seen the familiar thing it relates to. (Title/topic cards are exempt — they can name the concept.)
+e) MOTIVATION BEFORE MECHANISM — for every learning step that introduces a tool, technique, or formula, the PREVIOUS step must establish the problem it solves. The viewer must understand WHY before seeing HOW. Test each step: "would a newcomer who just watched the previous scenes know why we're doing this?" If not, insert a motivation step before it. Example failure: jumping to "compute 7^n mod 15" without first explaining that factoring large numbers is what protects Bitcoin keys. Example fix: "multiplying is easy, un-multiplying is hard → Bitcoin's security relies on this gap → Shor found a shortcut: look for repeating patterns → HERE's the pattern [now show the math]."
 
 CREATIVE DECISIONS:
 1. What's the BEST teaching approach for this topic? (analogy-first, problem>failure>fix, definition>deep-dive, specific>general, wrong>less-wrong>right, dialogue-driven)
@@ -1031,7 +1032,7 @@ THE QUALITY BAR — what makes a signature visual memorable:
 2. It has CONTINUOUS LIFE — something is always moving, even between scene transitions. Brownian motion, ambient shimmer, pulsing glow. The scene feels alive, not frozen between state changes.
 3. It has MULTIPLE MODES/STATES — the same visual behaves differently across scenes. A sponge tank that absorbs, permutes, squeezes, bounces attacks. A heatmap that fills linearly, then quadratically, then gets capped. Mode changes create drama.
 4. It has LAYERED EFFECTS — not one flat animation but depth: glow underneath + core element + highlight on top. Gradients, shadows, bloom, caustics.
-5. It TEACHES WITHOUT VOICEOVER — a viewer watching on mute should understand the core concept from visuals + on-screen text together. Neither alone carries everything. The diagram makes the mechanism click; the text explains what the viewer is seeing. If the visual is pure decoration while text does all the teaching, or vice versa, it fails.
+5. VISUAL LEADS, TEXT CLARIFIES — the animated visual demonstrates the mechanism; on-screen text labels/captions clarify what the viewer is seeing. The visual does the heavy lifting. If you removed the animation and kept only the text, the scene should feel broken. If a scene is mostly text panels with entrance animations, the visual isn't leading — it's a slide deck.
 Reference: EP8 SpongeCanvas (497 lines, Canvas 2D particle physics, 5 modes) and EP9 HeatmapCanvas (321 lines, Canvas 2D grid, 3 fill modes with heat color ramp) set the quality bar.
 
 Design:
@@ -1039,7 +1040,12 @@ a) THE SIGNATURE VISUAL — the ONE custom animation that makes this episode ins
 b) COLOR PALETTE — define EP_COLORS following the color mode above
 c) LAYOUT PATTERN — NOT centered-stack-with-heading — what serves THIS content?
 d) ANIMATION PERSONALITY — spring configs, timing, motion style that matches the topic
-e) CUSTOM COMPONENTS NEEDED — what must be built from scratch for this episode. Each act should have its own visual centerpiece.
+e) CUSTOM COMPONENTS NEEDED — what must be built from scratch for this episode. Each act should have its own visual centerpiece. For EACH act, specify the ACT VISUAL GRAMMAR:
+   - CENTERPIECE: the component name and what it renders (Canvas 2D, SVG, GSAP timeline — NOT just styled divs)
+   - MOTION VERB: the primary transformation (morphs, cascades, propagates, shatters, grows — NOT "fades in")
+   - RENDERING MODE: Canvas 2D / SVG path / GSAP choreography / CSS @keyframes — must be more than Framer Motion entrance
+   - TRANSFORMS ACROSS SCENES: how the centerpiece changes state between scenes in this act (NOT just mount/unmount)
+   A component that is styled divs with GSAP entrance stagger is a data display, not a centerpiece. Each act's centerpiece must have an underlying model, internal choreography beyond entrance, and multiple states.
 f) CHARACTER PLAN — if YES to characters: How are Alice & Bob used? Which scenes have dialogue? What's their positioning? What emotions/gestures drive the key moments? If NO characters: skip this.
 
 Also brainstorm 2 alternative concepts (brief, 1 paragraph each) in case the main concept fails in implementation.
@@ -1063,7 +1069,9 @@ STOP. Before storyboarding, critically review what you decided in Steps 2-3:
 - Is the signature visual original vs. every episode in the Registry?
 - Will this work at 1920x1080 with morph() and GSAP?
 - Did you choose characters for the right reason, or out of habit?
-- Would a viewer watching on mute understand the core concept from visuals + on-screen text together?
+- Does the VISUAL lead in each act? If you stripped the text and kept only the animation, would a viewer still roughly follow? Or is this a slide deck with a Canvas component in one corner?
+- Does EVERY act have a real visual centerpiece (Canvas/SVG/GSAP choreography), or are some acts just text panels with entrance animations?
+- Could any act's centerpiece be replaced by a static infographic? If yes, the visual isn't doing work — redesign it.
 
 If anything is misaligned, REVISE Steps 2-3 BEFORE proceeding.
 Note any revisions in a "Self-Review" subsection of Part 2.
@@ -1083,13 +1091,15 @@ Follow CLAUDE.md rules strictly:
 - Last scene = CTA
 - Explanatory sequences and mechanisms must be grounded with concrete labels and real values where relevant. Don't overload simple bridge scenes, but never leave a mechanism purely abstract.
 - NO JARGON BEFORE GROUNDING: a technical term cannot appear in explanatory scenes until the viewer has first seen the familiar thing it relates to. Title/topic cards are exempt.
+- MOTIVATION BEFORE MECHANISM: before any scene showing HOW something works (a formula, algorithm step, technique, or mathematical operation), there MUST be a preceding scene that establishes WHY — the problem it solves or the question it answers. A first-time viewer watching "7^1 mod 15 = 7" must already understand why modular exponentiation matters. If a scene shows a mechanism without prior motivation, that's a structural failure — split it: motivation scene first, then mechanism scene. The question "why are we doing this?" should never cross the viewer's mind.
 
 For EACH scene, write:
 1. SCENE NUMBER and NAME
 2. DURATION (simple: 6-7s, diagram: 8-10s, complex: 10-12s)
 3. ON-SCREEN CAPTION (short heading — max ~15 words, orients the viewer)
 4. TEXT INSIDE VISUAL (labels, values, formulas, field names INSIDE the diagram — no word limit. These explain what the viewer is seeing. Think 3Blue1Brown: equations next to geometry, labels pointing at things, real values inside blocks. The text must make the visual self-explanatory.)
-5. TEACHING ANCHORS — the exact on-screen text (labels, values, captions) that a MUTED viewer needs to understand what they're looking at and what changed. Visual + text together must carry the lesson. Every explanatory scene MUST have at least one. Title cards and mood beats are exempt.
+5. TEACHING ANCHORS — the exact on-screen text (labels, values, captions) that a MUTED viewer needs to understand what they're looking at and what changed. Visual leads, text clarifies. Every explanatory scene MUST have at least one. Title cards and mood beats are exempt.
+   TEXT ZONES — assign each text element to a non-overlapping zone: TOP (0-12vh), MAIN-LABEL (inside visual parent), BOTTOM (85-100vh), LEFT/RIGHT MARGIN. No two text elements may share the same zone unless they're inside the same visual component. This prevents text-on-text overlap.
 6. ON SCREEN — list EVERY visual element visible in this scene. Max 2-3 visual systems (one dominant + supporting text/labels). A small persistent element like a timeline bar counts toward this budget. If you need more than 3, split into multiple scenes. Mark which element is the **FOCAL OBJECT** — the one thing the eye tracks.
 7. CLEARED — list what was removed or hidden since the previous scene. When starting a new narrative act, clear the previous act's visuals entirely. Write "none" if nothing was removed.
 8. VISUAL DESCRIPTION (what the viewer sees — the diagram/animation that makes the concept click visually). Name the primary **ANIMATION TECHNIQUE** from this vocabulary: copy-move, morph, trace, rule-based-move, scale-vary, rearrange, decompose, highlight-morph, sweep, linked-vary.
@@ -1136,9 +1146,10 @@ PEDAGOGY CHECK (most important):
 3. Does each explanatory scene teach exactly ONE new step that builds on the previous?
 4. Does any scene use jargon that hasn't been visually grounded yet? (Title cards exempt)
 5. Could a muted viewer understand the mechanism from visuals + on-screen text together?
+6. MOTIVATION TEST: For each scene that shows a mechanism, formula, or algorithm step — is there a PRECEDING scene that explains WHY? Walk through as a complete newcomer: at every scene, can you answer "why are we doing this?" If not, a motivation scene is missing before it. This is the #1 cause of "this doesn't explain anything" feedback. A mechanism without motivation is just math on screen.
 
 QUALITY CHECK:
-6. Does it follow your direction from Step 2? Or did it drift?
+7. Does it follow your direction from Step 2? Or did it drift?
 7. Is the aha moment clearly placed and properly set up by preceding scenes?
 8. Is text short enough? (Check EVERY scene — max ~15 words per heading)
 9. Does every scene have an animated visual, or are some text-only slides?
@@ -1301,12 +1312,17 @@ Reference: EP8's SpongeCanvas.tsx (497 lines, Canvas 2D particle physics, 5 mode
 - Prefer persistent visuals with morph() when content spans multiple scenes — elements stay mounted and transform within the viewport. Use sceneRange() or CE enter/exit to swap content when appropriate.
 - If the storyboard includes CHARACTER scenes: import { Character } from '@/lib/video'. Characters are ready-made animated SVG stick figures — do NOT build custom character components. Just use <Character name="alice" emotion="explaining" gesture="point" says="text" />. Read the Characters section in CLAUDE-build.md for the full props API (emotions, gestures, lookAt, speech bubbles).
 
-TEXT POSITIONING RULES:
-- Teaching text gets RESERVED LAYOUT ZONES — decide where text goes BEFORE placing decorative elements
-- Text must NEVER overlap other text. Labels, captions, and values must each have their own clear space.
-- Visual layers (glows, backgrounds, diagrams) can overlap freely, but text is always readable on top
-- Every scene that teaches a concept must have visible on-screen text explaining what the viewer is seeing — the visual and text together carry the lesson
-- When positioning text elements, check what's already at that vertical/horizontal zone to avoid collision
+TEXT POSITIONING RULES — TEXT OVERLAP IS THE #1 BUG. PREVENT IT:
+- ZONE SYSTEM: divide the viewport into non-overlapping zones. Before placing ANY text, assign it a zone:
+  TOP STRIP: 0-12vh (scene heading/caption — ONE element only)
+  MAIN AREA: 12-85vh (visual + labels inside it — labels positioned relative to their visual parent, not absolute)
+  BOTTOM STRIP: 85-100vh (footnote, status, CTA — ONE element only)
+  LEFT MARGIN: 0-15vw, RIGHT MARGIN: 85-100vw (side labels if needed)
+- NEVER position two text elements with overlapping absolute coordinates. If a heading is at top:6vh and a subtitle is at top:8vh, they WILL overlap — use flexbox or explicit spacing.
+- NEVER layer text on top of other text using z-index. Visual layers (glows, backgrounds) can sit behind text, but text-on-text is always a bug.
+- For text INSIDE visuals (labels on diagrams): position labels relative to their parent component, not with viewport-absolute coordinates. This prevents collisions with scene-level text.
+- BEFORE writing a scene: list every text element and its zone. If two elements share a zone, reposition one.
+- When persistent text carries across scenes (morph), verify it doesn't collide with new text entering in the next scene.
 
 PHASE A — BUILD CUSTOM COMPONENTS:
 1. Create the episode directory: mkdir -p ${EP_PATH}/
@@ -1582,7 +1598,7 @@ Fix instructions per rule:
 - Themed CE: import ceThemes from '@/lib/video', call createThemedCE with a theme (blurIn, clipCircle, glitch, etc.)
 - Custom component: the episode's core visual must be a separate .tsx file, not inline in VideoTemplate
 - 150+ lines: the custom visual components (excluding VideoTemplate.tsx and constants.ts) must total at least 150 lines. If under 150, the visual is too thin — add more animation states, more scene-driven behavior, more visual depth. Reference: EP8 SpongeCanvas (497 lines), EP9 HeatmapCanvas (321 lines).
-- 2+ custom components: each act needs its own visual centerpiece — one component for the whole episode means no visual variety. Build distinct visuals for different narrative acts.
+- 2+ custom components: each act needs its own visual centerpiece — one component for the whole episode means no visual variety. Build distinct visuals for different narrative acts. A custom visual must have: (1) an underlying model or internal choreography beyond entrance stagger, (2) multiple states across scenes, (3) meaningful visual weight. Styled divs with GSAP entrance animations do NOT count — those are data displays, not visual centerpieces.
 
 Read ${EP_PATH}/ files and fix each violation. Then run: npx tsc --noEmit --project tsconfig.json
 PROMPT_END
@@ -1727,6 +1743,8 @@ YOUR FOCUS — score each 1-10:
    - Is there one clear FOCAL OBJECT per scene, or are multiple systems competing for attention?
    Score 1-3 if scenes are overcrowded (4+ visual systems) or motion is purely decorative, 4-6 if some clutter or unnecessary motion, 7-10 if each scene is clean with one dominant visual and purposeful motion.
    OVERCROWDED SCENES (4+ visual systems) and FAKE INTERMEDIATE STATES are MUST FIX. Decorative motion and missing focal object are SHOULD FIX.
+   PANEL FALLBACK: if 2+ consecutive explanatory scenes are mostly text panels/cards/rectangles with only entrance animations — flag as MUST FIX. Each act needs a real visual centerpiece that transforms/morphs/simulates, not a slide deck.
+   ACT WITHOUT CENTERPIECE: if any narrative act (3+ scenes on the same concept) has no component with an underlying model, internal choreography, or multiple states — flag as MUST FIX.
 
 BONUS: If characters (Alice/Bob) are used — do they have varied emotions across scenes? Are gestures used meaningfully (not all 'none')? Do they look at each other during dialogue? Are speech bubbles readable and short? Do characters add personality or feel like decoration?
 
@@ -1789,6 +1807,7 @@ STRUCTURAL FAILURES (auto-MUST FIX — these are not cosmetic):
 - Beautiful visual but you can't tell what mechanism it's showing
 - A scene where the concept is only carried by imagined narration, not visible on screen
 - More than one new idea crammed into a single scene
+- A mechanism, formula, or algorithm step appears before the viewer understands WHY it's needed (HOW before WHY — the viewer thinks "why are we doing this?")
 - Text overlapping other text, making it unreadable
 
 Walk through the episode scene by scene and narrate your experience as a viewer:
